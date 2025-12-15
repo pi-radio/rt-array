@@ -2,11 +2,14 @@
 set ::platform "zcu111"
 set ::silicon "e"
 
+set script_dir [file dirname [info script]]
+
 # local variables
 set project_dir "project"
 set ip_dir "srcs/ip"
 set constrs_dir "constrs"
 set scripts_dir "scripts"
+set srcs_dir "$script_dir/../srcs"
 
 # set variable names
 set part "xczu28dr-ffvg1517-2-${::silicon}"
@@ -22,6 +25,26 @@ set_property board_part xilinx.com:zcu111:part0:1.4 [current_project]
 # set up IP repo
 set_property ip_repo_paths $ip_dir [current_fileset]
 update_ip_catalog -rebuild
+
+# add source files before creating bd
+set obj [get_filesets sources_1]
+set files [list \
+ [file normalize "$srcs_dir/rtl/axis_skidbuffer.sv"] \
+ [file normalize "$srcs_dir/rtl/axis_mux.v"] \
+ [file normalize "$srcs_dir/rtl/axis_combine.v"] \
+ [file normalize "$srcs_dir/rtl/axis_demux.v"] \
+ [file normalize "$srcs_dir/rtl/axil_io.sv"] \
+ [file normalize "$srcs_dir/rtl/axis_broadcast.sv"] \
+ [file normalize "$srcs_dir/rtl/rt_proc_core.svh"] \
+ [file normalize "$srcs_dir/rtl/rt_proc_core.sv"] \
+ [file normalize "$srcs_dir/rtl/rt_summation.sv"] \
+ [file normalize "$srcs_dir/rtl/xcmult.sv"] \
+ [file normalize "$srcs_dir/rtl/rt_proc_core_v.v"] \
+ [file normalize "$srcs_dir/rtl/rt_proc_ctrl.sv"] \
+ [file normalize "$srcs_dir/ip/ip_repo/fracDelayFIR/fracDelayFIR.xci"]\
+ [file normalize "$srcs_dir/ip/ip_repo/GainCrrtFir/GainCrrtFir.xci"]\
+]
+add_files -norecurse -fileset $obj $files
 
 # set up bd design
 create_bd_design $design_name
@@ -87,14 +110,17 @@ puts "[report_property $x -file $proj_dir/$proj_name.ip_prop/$x.txt]"
 import_files
 puts "PASS_MSG: Importing files to the design Successful"
 
+set cores [exec getconf _NPROCESSORS_ONLN]
+set jobs [expr {$cores > 8 ? $cores - 8: 4}]
+
 reset_run synth_1
-launch_runs synth_1 -jobs 20
+launch_runs synth_1 -jobs $jobs
 wait_on_run synth_1
 if {[get_property PROGRESS [get_runs synth_1]] != "100%"} {   
     puts "ERROR: Synthesis failed"   
 } else {
     puts "PASS_MSG: Synthesis finished Successfully"
-    launch_runs impl_1 -to_step write_bitstream -jobs 20
+    launch_runs impl_1 -to_step write_bitstream -jobs $jobs
     wait_on_run impl_1
     if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {   
         puts "ERROR: Implementation failed"   
