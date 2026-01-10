@@ -1,0 +1,8 @@
+project
+.Xil
+*.log
+*.str
+*.jou
+project_backup/
+project_2021/
+rt_proc_core_sim/
