@@ -1,0 +1,87 @@
+From a24ab185a18a7306fddbb39916ae339e3e778f75 Mon Sep 17 00:00:00 2001
+From: Nagaradhesh Yeleswarapu <nagaradh@xilinx.com>
+Date: Fri, 17 Apr 2020 10:37:31 +0530
+Subject: [PATCH 10/11] misc: plmem: replace dma_declare_memory with reserved
+ memory
+
+dma_declare_memory is obsolete in latest kernel, hence
+move the memory management to reserved memory regions.
+
+Signed-off-by: Nagaradhesh Yeleswarapu <nagaradh@xilinx.com>
+---
+ drivers/misc/pl_mem.c | 32 +++++++++++++-------------------
+ 1 file changed, 13 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/misc/pl_mem.c b/drivers/misc/pl_mem.c
+index e20cfca21ffd..7970e9869a28 100644
+--- a/drivers/misc/pl_mem.c
++++ b/drivers/misc/pl_mem.c
+@@ -17,6 +17,7 @@
+  */
+ #include <linux/cdev.h>
+ #include <linux/clk.h>
++#include <linux/of_reserved_mem.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/fs.h>
+ #include <linux/init.h>
+@@ -694,29 +695,24 @@ static ssize_t plmem_store_selected_mem(struct device *dev,
+ 
+ 	switch (val) {
+ 	case PL_MEM:
+-		/* setup dma_mask and coherent_dma_mask */
+-		dma_set_mask(this->dma_dev,
+-			     DMA_BIT_MASK(sizeof(dma_addr_t) * 8));
+-		dma_set_coherent_mask(this->dma_dev,
+-				      DMA_BIT_MASK(sizeof(dma_addr_t) * 8));
+ 		this->mem_used = PL_MEM;
+ 		/* Decleare memory as coherent */
+ 		mem_node = of_parse_phandle(dev->of_node,
+-					    "xlnx,dedicated-pl-mem", 0);
+-		dev_dbg(dev, "Declearing PL DDR as coherent memory\n");
++					    "memory-region", 0);
+ 		if (mem_node) {
+ 			ret = of_address_to_resource(mem_node, 0, &mem_res);
++
+ 			if (!ret) {
+-				dev_dbg(dev, "Declearing coherent memory\n");
+-				ret = dma_declare_coherent_memory(dev,
+-						mem_res.start, mem_res.start,
+-						resource_size(&mem_res),
+-						DMA_ATTR_WEAK_ORDERING |
+-						DMA_ATTR_NON_CONSISTENT);
+-				if (ret < 0) {
+-					dev_err(dev, "fail: decl coheret: %d\n",
+-						ret);
++				ret = of_reserved_mem_device_init(dev);
++				if (ret) {
++					dev_err(dev, "Failed to get shared dma pool with error : %d\n", ret);
+ 					return -EINVAL;
++				} else {
++					/* setup dma_mask and coherent_dma_mask */
++					dma_set_mask(this->dma_dev,
++						DMA_BIT_MASK(sizeof(dma_addr_t) * 8));
++					dma_set_coherent_mask(this->dma_dev,
++						DMA_BIT_MASK(sizeof(dma_addr_t) * 8));
+ 				}
+ 			}
+ 		}
+@@ -727,15 +723,13 @@ static ssize_t plmem_store_selected_mem(struct device *dev,
+ 		/* setup dma_mask and coherent_dma_mask */
+ 		dma_set_mask(this->dma_dev, DMA_BIT_MASK(32));
+ 		dma_set_coherent_mask(this->dma_dev, DMA_BIT_MASK(32));
+-		dev_dbg(dev, "Declearing PS DDR as coherent memory\n");
+ 		break;
+ 	case NO_MEM:
+-		dev_dbg(dev, "Releasing coherent memory\n");
+ 		/* Release coherent memory and undeclare as coherent */
+ 		this->mem_used = NO_MEM;
+ 		dma_free_coherent(this->dma_dev, this->alloc_size,
+ 				  this->virt_addr, this->phys_addr);
+-		dma_release_declared_memory(dev);
++		of_reserved_mem_device_release(dev);
+ 		this->virt_addr = NULL;
+ 		break;
+ 	default:
+-- 
+2.17.1
+

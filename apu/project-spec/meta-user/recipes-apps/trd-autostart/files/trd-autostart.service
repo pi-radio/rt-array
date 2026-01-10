@@ -1,0 +1,15 @@
+[Unit]
+Description=trd-autostart
+After=local-fs.target network-online.target
+Wants=network-online.target
+Requires=run-media-mmcblk0p1.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/trd-autostart
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

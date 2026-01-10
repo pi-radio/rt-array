@@ -1,0 +1,64 @@
+From b87f6cb14e01ad1b17efd66ea334f81aac81254f Mon Sep 17 00:00:00 2001
+From: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+Date: Wed, 7 Apr 2021 12:48:07 +0530
+Subject: [PATCH 03/11] dmaengine: xilinx_dma: In SG cyclic mode allow multiple
+ descriptors submit
+
+Patch is to fix below issues in AXI DMA driver:
+
+1.In AXIDMA SG cyclic mode allow multiple prep_dma_cyclic and tx_submit. It
+ enables descriptors having different buf_addr/buf_len to be programmed in
+ the cyclic mode. This feature is used in implementing AXIDMA Time-division
+ multiplexing for multichannel usecase.
+
+2.Increase AXI DMA transaction segments count to ensure that even in high
+ load we always get a free segment in prepare descriptor for a DMA_SLAVE
+transaction.
+
+Signed-off-by: Radhey Shyam Pandey <radhey.shyam.pandey@xilinx.com>
+Signed-off-by: Nagaradhesh Yeleswarapu <nagaradh@xilinx.com>
+Signed-off-by: Kuldeep Dave <kuldeep.dave@xilinx.com>
+Signed-off-by: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+---
+ drivers/dma/xilinx/xilinx_dma.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/dma/xilinx/xilinx_dma.c b/drivers/dma/xilinx/xilinx_dma.c
+index 09cc1e9914cd..b67d707e8775 100644
+--- a/drivers/dma/xilinx/xilinx_dma.c
++++ b/drivers/dma/xilinx/xilinx_dma.c
+@@ -178,7 +178,7 @@
+ #define XILINX_DMA_BD_SOP		BIT(27)
+ #define XILINX_DMA_BD_EOP		BIT(26)
+ #define XILINX_DMA_COALESCE_MAX		255
+-#define XILINX_DMA_NUM_DESCS		255
++#define XILINX_DMA_NUM_DESCS		65537
+ #define XILINX_DMA_NUM_APP_WORDS	5
+ 
+ /* AXI CDMA Specific Registers/Offsets */
+@@ -1517,6 +1517,10 @@ static void xilinx_dma_start_transfer(struct xilinx_dma_chan *chan)
+ 	tail_segment = list_last_entry(&tail_desc->segments,
+ 				       struct xilinx_axidma_tx_segment, node);
+ 
++	/* Set the tail segment next_desc to first BD */
++	if (chan->cyclic)
++		tail_segment->hw.next_desc = (u32)head_desc->async_tx.phys;
++
+ 	reg = dma_ctrl_read(chan, XILINX_DMA_REG_DMACR);
+ 
+ 	if (chan->desc_pendingcount <= XILINX_DMA_COALESCE_MAX) {
+@@ -1940,11 +1944,6 @@ static dma_cookie_t xilinx_dma_tx_submit(struct dma_async_tx_descriptor *tx)
+ 	unsigned long flags;
+ 	int err;
+ 
+-	if (chan->cyclic) {
+-		xilinx_dma_free_tx_descriptor(chan, desc);
+-		return -EBUSY;
+-	}
+-
+ 	if (chan->err) {
+ 		/*
+ 		 * If reset fails, need to hard reset the system.
+-- 
+2.17.1
+

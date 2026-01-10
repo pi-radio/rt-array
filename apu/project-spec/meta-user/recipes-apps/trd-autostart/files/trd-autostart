@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+ts() { date '+[%Y-%m-%d %H:%M:%S]'; }
+
+echo "$(ts) TRD autostart beginning"
+
+# check mount point
+if [ ! -d /run/media/mmcblk0p1 ]; then
+    echo "$(ts) ERROR: SD mountpoint missing: /run/media/mmcblk0p1" >&2
+    exit 1
+fi
+
+# TODO: it would probably be good to just have autostart.sh content here
+# Execute userhook if present
+USERHOOK_SD=/run/media/mmcblk0p1/autostart.sh
+if [ -f "$USERHOOK_SD" ]; then
+    echo "$(ts) Executing $USERHOOK_SD"
+    sh "$USERHOOK_SD"
+    exit $?
+else
+    echo "$(ts) ERROR: userhook not found: $USERHOOK_SD" >&2
+    exit 1
+fi

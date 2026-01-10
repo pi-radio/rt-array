@@ -1,0 +1,57 @@
+From 78e8fb087fade884865bf9dc1d9d0598e7b28c12 Mon Sep 17 00:00:00 2001
+From: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+Date: Mon, 10 May 2021 20:11:23 +0530
+Subject: [PATCH 11/11] DMA changes as per kernel v5_10
+
+1. PL Mem mapping driver changes for kernel v5.10
+2. Update with proper copyright for PL mem driver
+
+Signed-off-by: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+---
+ drivers/misc/pl_mem.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/misc/pl_mem.c b/drivers/misc/pl_mem.c
+index 7970e9869a28..130ed0344b68 100644
+--- a/drivers/misc/pl_mem.c
++++ b/drivers/misc/pl_mem.c
+@@ -1,3 +1,4 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * PL MEM Mapping driver
+  *
+@@ -8,17 +9,16 @@
+  * Description:
+  * This PL MEM driver, allocates coherent memory in either PL or PS
+  * depending on the selection. Triggers DEV_TO_MEM or MEM_TO_DEVICE
+- * DMA depending on the usecase.
++ * DMA depending on the use case.
+  *
+- * This program is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License as published by
+- * the Free Software Foundation, either version 2 of the License, or
+- * (at your option) any later version.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
+  */
+ #include <linux/cdev.h>
+ #include <linux/clk.h>
+ #include <linux/of_reserved_mem.h>
+-#include <linux/dma-mapping.h>
++#include <linux/dma-map-ops.h>
+ #include <linux/fs.h>
+ #include <linux/init.h>
+ #include <linux/interrupt.h>
+@@ -606,7 +606,7 @@ static struct plmem_driver_data *plmem_driver_create(const char *name,
+ 	dev_dbg(this->sys_dev, "buffer size    = %zu\n", this->alloc_size);
+ 	if ((MINOR(this->device_number) == 0) ||
+ 		(MINOR(this->device_number) == 8)) {
+-		chan = dma_request_slave_channel_reason(parent, channel);
++		chan = dma_request_chan(parent, channel);
+ 		if (IS_ERR(chan)) {
+ 			ret = PTR_ERR(chan);
+ 			dev_err(this->dma_dev, "%s DMA request channel failed:%d\n",
+-- 
+2.17.1
+

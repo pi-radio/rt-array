@@ -1,0 +1,77 @@
+From 4b016d0ded747e1228ca3e933a36b2054979143c Mon Sep 17 00:00:00 2001
+From: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+Date: Wed, 7 Apr 2021 12:49:58 +0530
+Subject: [PATCH 05/11] i2c: cadence: Implement timeout
+
+In some cases we are waiting in a loop. Replace the infinite
+wait with the timeout.
+
+Signed-off-by: Naveen Kumar Gaddipati <naveenku@xilinx.com>
+Signed-off-by: Shubhrajyoti Datta <shubhrajyoti.datta@xilinx.com>
+---
+ drivers/i2c/busses/i2c-cadence.c | 30 ++++++++++++++++++++++++++----
+ 1 file changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/i2c/busses/i2c-cadence.c b/drivers/i2c/busses/i2c-cadence.c
+index 8a5fdb150c44..a3ae0bc6ec4c 100644
+--- a/drivers/i2c/busses/i2c-cadence.c
++++ b/drivers/i2c/busses/i2c-cadence.c
+@@ -399,6 +399,7 @@ static irqreturn_t cdns_i2c_master_isr(void *ptr)
+ 	struct cdns_i2c *id = ptr;
+ 	/* Signal completion only after everything is updated */
+ 	int done_flag = 0;
++	unsigned int timeout;
+ 	irqreturn_t status = IRQ_NONE;
+ 
+ 	isr_status = cdns_i2c_readreg(CDNS_I2C_ISR_OFFSET);
+@@ -422,6 +423,7 @@ static irqreturn_t cdns_i2c_master_isr(void *ptr)
+ 	    ((isr_status & CDNS_I2C_IXR_COMP) ||
+ 	     (isr_status & CDNS_I2C_IXR_DATA))) {
+ 		/* Read data if receive data valid is set */
++		timeout = 1000;
+ 		while (cdns_i2c_readreg(CDNS_I2C_SR_OFFSET) &
+ 		       CDNS_I2C_SR_RXDV) {
+ 			if (id->recv_count > 0) {
+@@ -448,6 +450,14 @@ static irqreturn_t cdns_i2c_master_isr(void *ptr)
+ 
+ 			if (cdns_is_holdquirk(id, updatetx))
+ 				break;
++			timeout--;
++			if(timeout) mdelay(1);
++			else break;
++		}
++		if (!timeout) {
++			id->err_status = -ETIMEDOUT;
++			complete(&id->xfer_done);
++			return IRQ_HANDLED;
+ 		}
+ 
+ 		/*
+@@ -457,11 +467,22 @@ static irqreturn_t cdns_i2c_master_isr(void *ptr)
+ 		 * maintain transfer size non-zero while performing a large
+ 		 * receive operation.
+ 		 */
++		timeout = 1000;
+ 		if (cdns_is_holdquirk(id, updatetx)) {
+ 			/* wait while fifo is full */
+ 			while (cdns_i2c_readreg(CDNS_I2C_XFER_SIZE_OFFSET) !=
+-			       (id->curr_recv_count - CDNS_I2C_FIFO_DEPTH))
+-				;
++			       (id->curr_recv_count - CDNS_I2C_FIFO_DEPTH)) {
++				timeout--;
++				if(timeout) mdelay(1);
++				else break;       
++		        }
++			if (!timeout) {
++				id->err_status = -ETIMEDOUT;
++				complete(&id->xfer_done);
++				return IRQ_HANDLED;
++			}
++		       
++		       
+ 
+ 			/*
+ 			 * Check number of bytes to be received against maximum
+-- 
+2.17.1
+

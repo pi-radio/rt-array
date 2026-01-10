@@ -1,0 +1,16 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/amba";
+        __overlay__ {
+            dma_proxy {
+                compatible = "xlnx,dma_proxy";
+                dmas = <&{/amba/dma@b0030000} 0>;
+                dma-names = "dma_proxy_tx";
+                dma-coherent;
+            };
+        };
+    };
+};

@@ -1,0 +1,49 @@
+/include/ "system-conf.dtsi"
+/ {
+	
+	chosen {
+		bootargs = "earlycon clk_ignore_unused root=/dev/ram rw cma=1500M cpuidle.off=1 uio_pdrv_genirq.of_id=generic-uio";
+		stdout-path = "serial0:115200n8";
+	};
+	reserved-memory {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		ranges;
+		plmem_pool0: pool0_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x10000000 0x0 0x8000000>;
+		};
+		plmem_pool1: pool1_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18000000 0x0 0x100000>;
+		};
+		plmem_pool2: pool2_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18100000 0x0 0x100000>;
+		};
+		plmem_pool3: pool3_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18200000 0x0 0x100000>;
+		};
+		plmem_pool4: pool4_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18300000 0x0 0x100000>;
+		};
+		plmem_pool5: pool5_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18400000 0x0 0x100000>;
+		};
+		plmem_pool6: pool6_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18500000 0x0 0x100000>;
+		};
+		plmem_pool7: pool7_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x18600000 0x0 0x100000>;
+		};
+		plmem_pool8: pool8_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0x4 0x20000000 0x0 0x40000000>;
+		};
+	};
+};

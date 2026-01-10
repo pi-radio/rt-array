@@ -1,0 +1,61 @@
+From 83cc52c86d5f817cb099d8a27e9ef112a6ddb3aa Mon Sep 17 00:00:00 2001
+From: Nagaradhesh Yeleswarapu <nagaradh@xilinx.com>
+Date: Fri, 25 Jan 2019 16:53:24 +0530
+Subject: [PATCH 08/11] plmem: clean up sysfs node and character device nodes
+ properly
+
+Fix plmem_driver_destroy to remove sysfs entries and character
+driver device nodes, to support dynamic loading and unloading
+of driver. Also fix few warnings in driver.
+
+Signed-off-by: Nagaradhesh Yeleswarapu <nagaradh@xilinx.com>
+Signed-off-by: Kuldeep Dave <kuldeep.dave@xilinx.com>
+---
+ drivers/misc/pl_mem.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/pl_mem.c b/drivers/misc/pl_mem.c
+index bd0dc8613d41..e20cfca21ffd 100644
+--- a/drivers/misc/pl_mem.c
++++ b/drivers/misc/pl_mem.c
+@@ -662,7 +662,7 @@ static ssize_t plmem_store_mem_type(struct device *dev,
+ 	if (kstrtoul(buf, 0, &val))
+ 		return -EINVAL;
+ 
+-	if (val < 0)
++	if (val > MAX)
+ 		return -EINVAL;
+ 
+ 	this->mem_type = val;
+@@ -823,8 +823,8 @@ static int plmem_platform_driver_probe(struct platform_device *pdev)
+ 	driver_data = plmem_driver_create(DRIVER_NAME, &pdev->dev,
+ 					  minor_number, size, channel);
+ 	if (IS_ERR_OR_NULL(driver_data)) {
+-		dev_err(&pdev->dev, "driver create fail.\n");
+-		retval = PTR_ERR(driver_data);
++		dev_err(&pdev->dev, "driver create fail ret : %l\n",
++			PTR_ERR(driver_data));
+ 		retval = -EPROBE_DEFER;
+ 		goto failed;
+ 	}
+@@ -853,10 +853,16 @@ static int plmem_driver_destroy(struct plmem_driver_data *this)
+ 	if (!this)
+ 		return -ENODEV;
+ 
+-	ida_simple_remove(&plmem_device_ida, MINOR(this->device_number));
+ 	dma_free_coherent(this->dma_dev, this->alloc_size, this->virt_addr,
+ 			  this->phys_addr);
++	if (MINOR(this->device_number) == 0)
++		dma_release_channel(chan_dac);
++	else if (MINOR(this->device_number) == 8)
++		dma_release_channel(chan_adc);
++	sysfs_remove_group(&this->dma_dev->kobj, &plmem_attr_group);
+ 	cdev_del(&this->cdev);
++	device_destroy(plmem_sys_class, this->device_number);
++	ida_simple_remove(&plmem_device_ida, MINOR(this->device_number));
+ 	kfree(this);
+ 	return 0;
+ }
+-- 
+2.17.1
+
