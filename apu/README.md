@@ -23,6 +23,7 @@ source <petalinux-install-path>/settings.sh
 ```
 2. Run the build script
 ``` bash
+chmod +x build.sh
 ./build.sh
 ```
 Optional env variables can be used to enable .wic and .bsp outputs
