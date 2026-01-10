@@ -17,12 +17,6 @@ fi
 petalinux-build
 
 cd images/linux/
-echo 'all:
-{
-	[destination_device = pl] system.bit /* Bitstream file name */
-}' > bitstream.bif
-# bootgen -image bitstream.bif -arch zynqmp -o zcu111_rfsoc_trd_wrapper.bit.bin -w
-petalinux-package --force --boot --bif bitstream.bif -o zcu111_rfsoc_trd_wrapper.bit.bin
 
 petalinux-package --force --boot \
 	--fsbl zynqmp_fsbl.elf \
