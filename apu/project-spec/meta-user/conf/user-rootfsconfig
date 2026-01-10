@@ -8,7 +8,6 @@ CONFIG_rfdc-read-write
 CONFIG_rfdc-selftest
 CONFIG_sdfec
 CONFIG_mts
-CONFIG_dma-fir
 CONFIG_piradio
 CONFIG_trd-autostart
 CONFIG_rftool

@@ -4079,7 +4079,6 @@ CONFIG_Init-manager-systemd=y
 #
 # user packages 
 #
-CONFIG_dma-fir=y
 CONFIG_gpio-demo=y
 CONFIG_mts=y
 CONFIG_peekpoke=y
