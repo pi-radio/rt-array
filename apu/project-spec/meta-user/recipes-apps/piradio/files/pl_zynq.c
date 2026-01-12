@@ -174,7 +174,10 @@ void pl_axisswitch_setidx(uint32_t idx) {
         pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*(idx - 1), 0x80000000);    
     }
     // enable this route
-    pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*idx, 0x00000000);    
+    pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*idx, 0x00000000);
+
+    // load above config (self clearing)
+    pl_axisswitch_write32(0, 0x00000002);
 }
 
 void pl_axisswitch_reset() {
