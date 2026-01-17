@@ -1,0 +1,4 @@
+all:
+{
+	[destination_device = pl] zcu111_rfsoc_trd_wrapper.bit
+}
