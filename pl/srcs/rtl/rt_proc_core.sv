@@ -61,7 +61,7 @@ module rt_proc_core #(
     output logic [`NCH - 1:0] fir1_reload_tready,
     input logic [`NCH - 1:0] fir1_reload_tlast,
 
-    output logic operation_mode,
+    output logic [1:0] operation_mode,
 
     // no backpressure on the data ports.
     // adc0 to adc7
@@ -75,7 +75,7 @@ module rt_proc_core #(
 );
 
     localparam int W_FIR0_OUT = 16;
-    localparam int I_FIR0_OUT = 3;
+    localparam int I_FIR0_OUT = 1;
     localparam int F_FIR0_OUT = W_FIR0_OUT - I_FIR0_OUT;
 
     localparam int W_FIR0_FULL_PRECISION = 40;
@@ -83,12 +83,12 @@ module rt_proc_core #(
     localparam int F_FIR0_FULL_PRECISION = 30; // note that the ip sign extends the data from 38 to 40 bits
 
     localparam int W_FIR1_OUT = 16;
-    localparam int I_FIR1_OUT = 5;
+    localparam int I_FIR1_OUT = 1;
     localparam int F_FIR1_OUT = W_FIR1_OUT - I_FIR1_OUT;
 
     localparam int W_FIR1_FULL_PRECISION = 40;
     localparam int I_FIR1_FULL_PRECISION = 10;
-    localparam int F_FIR1_FULL_PRECISION = 28; // note that the ip sign extends the data from 37 to 40 bits
+    localparam int F_FIR1_FULL_PRECISION = 30; // note that the ip sign extends the data from 38 to 40 bits
 
     localparam int DW_FFT_OUT = 16;
     localparam int DW_REAL = DW / 2;
@@ -143,7 +143,7 @@ module rt_proc_core #(
     logic [32 * `NCH - 1:0] phase;
 
     logic tx_rx_axil;
-    logic operation_mode_axil;
+    logic [1:0] operation_mode_axil;
     logic [32 * `NCH - 1:0] phase_axil;
 
     axil_io axil_io_inst (
@@ -195,11 +195,12 @@ module rt_proc_core #(
         .src_in  (tx_rx_axil)
     );
 
-    xpm_cdc_single #(
+    xpm_cdc_array_single #(
         .DEST_SYNC_FF(4),  // DECIMAL; range: 2-10
         .INIT_SYNC_FF(1),   // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
         .SIM_ASSERT_CHK(1),  // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-        .SRC_INPUT_REG(1)  // DECIMAL; 0=do not register input, 1=register input
+        .SRC_INPUT_REG(1),  // DECIMAL; 0=do not register input, 1=register input
+        .WIDTH(2)
     ) xpm_cdc_operation_mode (
         .dest_out(operation_mode),
         .dest_clk(clk),
@@ -218,7 +219,6 @@ module rt_proc_core #(
         .dest_clk(clk),
         .src_clk (axil_clk),
         .src_in  (phase_axil)
-
     );
 
     xpm_fifo_axis #(
@@ -301,7 +301,7 @@ module rt_proc_core #(
                 .clk(clk),
                 .reset_n(reset_n),
 
-                .sel(tx_rx),  // 0 for tx bf
+                .sel({1'b0,tx_rx}),  // 0 for tx bf
 
                 // select b/w 7 copies of adc0
                 .s0_tdata(s_tdata_i[gi*DW_DATA+:DW_DATA]),
@@ -311,6 +311,10 @@ module rt_proc_core #(
                 .s1_tdata (s_tdata[DW_DATA+gi*DW_DATA+:DW_DATA]),
                 .s1_tvalid(s_tvalid),
                 .s1_tready(s_tready_rx[gi]),
+
+                .s2_tdata('h0),
+                .s2_tvalid('h0),
+                .s2_tready(),
 
                 .m_tdata(fir0_in_tdata_i[gi*DW_DATA+:DW_DATA]),
                 .m_tvalid(fir0_in_tvalid_i[gi]),
@@ -341,12 +345,12 @@ module rt_proc_core #(
             // TODO: make this 2x?
             for (gj = 0; gj < SAMPLES_PER_CLOCK; gj++) begin
                 xcmult #(
-                    .W_A(16),
-                    .I_A(3),
+                    .W_A(W_FIR0_OUT),
+                    .I_A(I_FIR0_OUT),
                     .W_B(16),
                     .I_B(1),
-                    .W_P(16),
-                    .I_P(3)
+                    .W_P(W_FIR0_OUT),
+                    .I_P(I_FIR0_OUT)
                 ) xcmult_inst (
                     .clk(clk),
                     .en(1'b1),
@@ -354,7 +358,7 @@ module rt_proc_core #(
                         fir0_tdata_q[gi*SAMPLES_PER_CLOCK+gj], fir0_tdata_i[gi*SAMPLES_PER_CLOCK+gj]
                     }),
                     .b(phase[gi*32+:32]),
-                    .p  (phaserot_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_OUT)+gj*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT)])
+                    .p(phaserot_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_OUT)+gj*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT)])
                 );
             end
             // Q formats:
@@ -390,9 +394,13 @@ module rt_proc_core #(
         for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
             int addr_real = 2 * i * W_FIR0_FULL_PRECISION;
             int addr_imag = addr_real + W_FIR0_FULL_PRECISION;
+            logic signed [W_FIR0_FULL_PRECISION - 1:0] temp_i, temp_q;
 
-            fir0_tdata_i[i] = fir0_full_tdata[addr_real +: W_FIR0_FULL_PRECISION] >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
-            fir0_tdata_q[i] =  fir0_full_tdata[addr_imag +: W_FIR0_FULL_PRECISION] >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
+            temp_i = fir0_full_tdata[addr_real +: W_FIR0_FULL_PRECISION];
+            temp_q = fir0_full_tdata[addr_imag +: W_FIR0_FULL_PRECISION];
+
+            fir0_tdata_i[i] = temp_i >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
+            fir0_tdata_q[i] =  temp_q >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
         end
     end
 
@@ -400,10 +408,14 @@ module rt_proc_core #(
         for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
             int addr_real = 2 * i * W_FIR1_FULL_PRECISION;
             int addr_imag = addr_real + W_FIR1_FULL_PRECISION;
+            logic signed [W_FIR1_FULL_PRECISION - 1:0] temp_i, temp_q;
+
+            temp_i = fir1_full_tdata[addr_real +: W_FIR1_FULL_PRECISION];
+            temp_q = fir1_full_tdata[addr_imag +: W_FIR1_FULL_PRECISION];
 
             // first 7 are real parts, next 7 are imag parts
-            fir1_tdata_i[i] = fir1_full_tdata[addr_real +: W_FIR1_FULL_PRECISION] >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
-            fir1_tdata_q[i] = fir1_full_tdata[addr_imag +: W_FIR1_FULL_PRECISION] >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
+            fir1_tdata_i[i] = temp_i >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
+            fir1_tdata_q[i] = temp_q >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
         end
 
         for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin

@@ -105,6 +105,9 @@ module rt_summation #(
     end
 
     always_comb begin
+        m_tvalid = 0;
+        m_tdata = 0;
+
         if (sel_tx_rx) begin  // rx bf
             if (SAMPLES_PER_CLOCK == 1) begin
                 m_tdata = {

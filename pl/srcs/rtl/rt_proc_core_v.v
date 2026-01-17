@@ -57,7 +57,7 @@ module rt_proc_core_v #(
     output wire [NCH - 1:0] fir_reload_tready,
     input wire [NCH - 1:0] fir_reload_tlast,
 
-    output wire operation_mode,
+    output wire [1:0] operation_mode,
 
     // from adc0 to adc7
     input wire [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] s_tdata,
@@ -74,14 +74,34 @@ module rt_proc_core_v #(
     reg [COEFF_WIDTH * NCH/2 - 1:0] fir0_reload_tdata_i;
     reg [COEFF_WIDTH * NCH/2 - 1:0] fir1_reload_tdata_i;
 
+    reg [NCH/2 - 1:0] fir0_reload_tvalid_i;
+    reg [NCH/2 - 1:0] fir1_reload_tvalid_i;
+    
+    reg [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] s_tdata_i;
+    reg [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] m_tdata_i;
+
     // pikcing 16 bits out of incoming 32-bit data from DMA
     integer i;
     always @(*) begin
         for (i = 0; i < NCH / 2; i = i + 1) begin
             fir0_reload_tdata_i[COEFF_WIDTH*i+:COEFF_WIDTH] = fir_reload_tdata[32*i+:COEFF_WIDTH];
             fir1_reload_tdata_i[COEFF_WIDTH*i+:COEFF_WIDTH] = fir_reload_tdata[32 * NCH/2 + 32*i+:COEFF_WIDTH];
+            
+            fir0_reload_tvalid_i[i] = fir_reload_tvalid[i];
+            fir1_reload_tvalid_i[i] = fir_reload_tvalid[7 + i];
         end
     end
+
+    // changing the interface ordering. 
+    always @(*) begin
+        for (i = 0; i < N_ANT; i = i + 1) begin                    // adc -> core
+            s_tdata_i[64*i + 0  +: 16] = s_tdata[64*i + 0  +: 16]; // i0  -> i0
+            s_tdata_i[64*i + 16 +: 16] = s_tdata[64*i + 32 +: 16]; // i1  -> q0
+            s_tdata_i[64*i + 32 +: 16] = s_tdata[64*i + 16 +: 16]; // q0  -> i1
+            s_tdata_i[64*i + 48 +: 16] = s_tdata[64*i + 48 +: 16]; // q1  -> q1
+        end
+    end
+
     rt_proc_core #(
         .DW(DW),
         .COEFF_WIDTH(COEFF_WIDTH)
@@ -115,14 +135,14 @@ module rt_proc_core_v #(
         .operation_mode(operation_mode),
 
         .fir0_reload_tdata (fir0_reload_tdata_i),
-        .fir0_reload_tvalid(fir_reload_tvalid[0+:NCH/2]),
-        .fir0_reload_tready(fir_reload_tready[0+:NCH/2]),
-        .fir0_reload_tlast (fir_reload_tlast[0+:NCH/2]),
+        .fir0_reload_tvalid(fir0_reload_tvalid_i),
+        .fir0_reload_tready(fir_reload_tready[6:0]),
+        .fir0_reload_tlast (fir_reload_tlast[6:0]),
 
         .fir1_reload_tdata (fir1_reload_tdata_i),
-        .fir1_reload_tvalid(fir_reload_tvalid[NCH/2+:NCH/2]),
-        .fir1_reload_tready(fir_reload_tready[NCH/2+:NCH/2]),
-        .fir1_reload_tlast (fir_reload_tlast[NCH/2+:NCH/2]),
+        .fir1_reload_tvalid(fir1_reload_tvalid_i),
+        .fir1_reload_tready(fir_reload_tready[13:7]),
+        .fir1_reload_tlast (fir_reload_tlast[13:7]),
 
         .s_tdata (s_tdata),
         .s_tvalid(s_tvalid),

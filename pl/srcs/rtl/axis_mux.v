@@ -19,36 +19,40 @@ module axis_mux #(
     input wire clk,
     input wire reset_n,
 
-    input wire sel,
+    input wire [1:0] sel,
 
-    input wire [DW - 1:0] s0_tdata,
-    input wire s0_tvalid,
-    output reg s0_tready,
+    input  wire [DW - 1:0] s0_tdata,
+    input  wire            s0_tvalid,
+    output reg             s0_tready,
 
-    input wire [DW - 1:0] s1_tdata,
-    input wire s1_tvalid,
-    output reg s1_tready,
+    input  wire [DW - 1:0] s1_tdata,
+    input  wire            s1_tvalid,
+    output reg             s1_tready,
+
+    input  wire [DW - 1:0] s2_tdata,
+    input  wire            s2_tvalid,
+    output reg             s2_tready,
 
     output wire [DW - 1:0] m_tdata,
-    output wire m_tvalid,
-    input wire m_tready
+    output wire            m_tvalid,
+    input  wire            m_tready
 );
 
-    reg [DW - 1:0] m_tdata_i;
-    reg m_tvalid_i;
-    wire m_tready_i;
+    reg  [DW - 1:0] m_tdata_i;
+    reg             m_tvalid_i;
+    wire            m_tready_i;
 
     axis_skidbuffer #(
         .DW(DW)
     ) axis_skidbuffer_inst (
-        .clk(clk),
+        .clk    (clk),
         .reset_n(reset_n),
 
-        .s_tdata(m_tdata_i),
+        .s_tdata (m_tdata_i),
         .s_tvalid(m_tvalid_i),
         .s_tready(m_tready_i),
 
-        .m_tdata(m_tdata),
+        .m_tdata (m_tdata),
         .m_tvalid(m_tvalid),
         .m_tready(m_tready)
     );
@@ -56,15 +60,33 @@ module axis_mux #(
     always @(*) begin
         s0_tready = 0;
         s1_tready = 0;
-        if (sel) begin
-            s1_tready = m_tready_i;
-            m_tdata_i   = s1_tdata;
-            m_tvalid_i  = s1_tvalid;
-        end else begin
-            s0_tready = m_tready_i;
-            m_tdata_i   = s0_tdata;
-            m_tvalid_i  = s0_tvalid;
-        end
+        s2_tready = 0;
+
+        m_tdata_i = 0;
+        m_tvalid_i = 0;
+
+        case (sel)
+            0: begin
+                s0_tready  = m_tready_i;
+                m_tdata_i  = s0_tdata;
+                m_tvalid_i = s0_tvalid;
+            end
+            1: begin
+                s1_tready  = m_tready_i;
+                m_tdata_i  = s1_tdata;
+                m_tvalid_i = s1_tvalid;
+            end
+            2: begin // bypass mode
+                s2_tready  = m_tready_i;
+                m_tdata_i  = s2_tdata;
+                m_tvalid_i = s2_tvalid;
+            end
+            3: begin // bypass mode
+                s2_tready  = m_tready_i;
+                m_tdata_i  = s2_tdata;
+                m_tvalid_i = s2_tvalid;
+            end            
+        endcase
     end
 
 endmodule

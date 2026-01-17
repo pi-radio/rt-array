@@ -32,7 +32,7 @@ module axil_io #(
 
     // user ports here
     , output reg [224 - 1:0] phase,
-    output reg operation_mode,
+    output reg [1:0] operation_mode,
     output reg tx_rx,
 
     output reg [7:0] fir0_tdata,
@@ -177,7 +177,7 @@ module axil_io #(
     always_comb begin
         // reg_space[0]:
         // 0 for calibration, correction(real time) otherwise
-        operation_mode = (reg_space[0][0 +: 8] != 0);
+        operation_mode = reg_space[0][0 +: 2];
         tx_rx = (reg_space[0][8 +: 8] != 0); // 0 for tx, 1 for rx
         // phase_reload = (reg_space[0][16 +: 8] == 0); // self clearing
         fir_reload = (reg_space[0][24 +: 8] != 0); // self clearing
@@ -242,6 +242,10 @@ module axil_io #(
             end
             WR_FIR1: begin
                 fir1_tvalid = 1'b1;
+            end
+            default: begin
+                fir0_tvalid = 0;
+                fir1_tvalid = 0;
             end
         endcase
     end
