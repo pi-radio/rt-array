@@ -7,9 +7,9 @@
 // for tx beamforming, pass the input as it is to output
 // for rx beamforming, combine the input stream into a single output stream
 //
-// Last update on Sep 24, 2025
+// Last update on Jan 18, 2026
 //
-// Copyright @ 2025
+// Copyright @ 2026
 //
 `include "rt_proc_core.svh"
 
@@ -23,14 +23,11 @@ module rt_summation #(
     input wire clk,
     input wire reset_n,
 
-    // 0 - tx, 1 - rx beamforming
-    input wire sel_tx_rx,
-
-    // 2x for i/q
+    // 2x for i/q - 7 input streams
     input wire [DW_FIR * 2 * SAMPLES_PER_CLOCK * `NCH - 1:0] s_tdata,
     input wire s_tvalid,
-    // 2x for i/q
-    output reg [DW_OUT * 2 * SAMPLES_PER_CLOCK * `N_ANT  - 1:0] m_tdata,
+    // 2x for i/q - 1 output stream
+    output reg [DW_OUT * 2 * SAMPLES_PER_CLOCK  - 1:0] m_tdata,
     output reg m_tvalid
 );
 
@@ -105,32 +102,17 @@ module rt_summation #(
     end
 
     always_comb begin
-        m_tvalid = 0;
         m_tdata = 0;
-
-        if (sel_tx_rx) begin  // rx bf
-            if (SAMPLES_PER_CLOCK == 1) begin
-                m_tdata = {
-                    {(2 * `NCH * SAMPLES_PER_CLOCK * DW_OUT) {1'b0}}, out_q[0], out_i[0]
-                };  // dac1 to dac7 are set to 0
-            end else begin
-                m_tdata = {
-                    {(2 * `NCH * SAMPLES_PER_CLOCK * DW_OUT) {1'b0}},
-                    out_q[1],
-                    out_i[1],
-                    out_q[0],
-                    out_i[0]
-                };  // dac1 to dac7 are set to 0
-            end
-
-            m_tvalid = m_tvalid_i[2];
-        end else begin  // tx bf
-            if (SAMPLES_PER_CLOCK == 1) begin
-                m_tdata = {s_tdata, {(2 * DW_OUT) {1'b0}}};  // dac0 is set to 0
-            end else begin
-                m_tdata = {s_tdata, {(2 * SAMPLES_PER_CLOCK * DW_OUT) {1'b0}}};  // dac0 is set to 0
-            end
-            m_tvalid = s_tvalid;
+        if (SAMPLES_PER_CLOCK == 1) begin
+            m_tdata = {out_q[0], out_i[0]};
+        end else begin
+            m_tdata = {
+                out_q[1],
+                out_i[1],
+                out_q[0],
+                out_i[0]
+            };
         end
+        m_tvalid = m_tvalid_i[2];
     end
 endmodule

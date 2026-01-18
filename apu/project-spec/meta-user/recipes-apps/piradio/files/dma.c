@@ -3,14 +3,22 @@
 struct dma_state_t dma_state = {0};
 
 // DMA helper functions
-static inline void dma_write_reg(uint32_t offset, uint32_t value)
+static inline void dma_write_reg(uint32_t offset, uint32_t value, uint8_t is_tx)
 {
-    dma_state.dma_regs[offset >> 2] = value;
+    if(is_tx) {
+        dma_state.tx_dma_regs[offset >> 2] = value;
+    } else {
+        dma_state.rx_dma_regs[offset >> 2] = value;
+    }  
 }
 
-static inline uint32_t dma_read_reg(uint32_t offset)
+static inline uint32_t dma_read_reg(uint32_t offset, uint8_t is_tx)
 {
-    return dma_state.dma_regs[offset >> 2];
+    if(is_tx) {
+        return dma_state.tx_dma_regs[offset >> 2];
+    } else {
+        return dma_state.rx_dma_regs[offset >> 2];
+    }
 }
 
 int dma_init(void)
@@ -24,17 +32,28 @@ int dma_init(void)
         return -1;
     }
     
-    dma_state.dma_regs = (volatile uint32_t *)mmap(NULL, DMA_MAP_SIZE,
+    dma_state.tx_dma_regs = (volatile uint32_t *)mmap(NULL, FIR_TX_DMA_MAP_SIZE,
                                                      PROT_READ | PROT_WRITE,
                                                      MAP_SHARED,
                                                      dma_state.mem_fd,
-                                                     DMA_BASE_ADDR);
-    if (dma_state.dma_regs == MAP_FAILED) {
+                                                     FIR_TX_DMA_BASE_ADDR);
+    if (dma_state.tx_dma_regs == MAP_FAILED) {
         perror("Failed to mmap DMA registers");
         close(dma_state.mem_fd);
         return -1;
     }
-    
+
+    dma_state.rx_dma_regs = (volatile uint32_t *)mmap(NULL, FIR_RX_DMA_MAP_SIZE,
+                                                     PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED,
+                                                     dma_state.mem_fd,
+                                                     FIR_RX_DMA_BASE_ADDR);
+    if (dma_state.rx_dma_regs == MAP_FAILED) {
+        perror("Failed to mmap DMA registers");
+        close(dma_state.mem_fd);
+        return -1;
+    }
+        
     // map FIR coeffs buffer
     dma_state.fir_buffer_phys = FIR_BUFFER_BASE;
     dma_state.fir_buffer = (volatile uint32_t *)mmap(NULL, FIR_BUFFER_SIZE,
@@ -44,12 +63,12 @@ int dma_init(void)
                                                        (off_t)dma_state.fir_buffer_phys);
     if (dma_state.fir_buffer == MAP_FAILED) {
         perror("Failed to mmap FIR buffer");
-        munmap((void*)dma_state.dma_regs, DMA_MAP_SIZE);
+        munmap((void*)dma_state.tx_dma_regs, FIR_TX_DMA_MAP_SIZE);
         close(dma_state.mem_fd);
         return -1;
     }
     
-    printf("  DMA registers mapped at %p\n", (void*)dma_state.dma_regs);
+    printf("  DMA registers mapped at %p\n", (void*)dma_state.tx_dma_regs);
     printf("  FIR buffer mapped at %p (phys: 0x%llx)\n", 
            (void*)dma_state.fir_buffer, 
            (unsigned long long)dma_state.fir_buffer_phys);
@@ -226,8 +245,8 @@ void dma_cleanup(void)
         if (dma_state.fir_buffer != MAP_FAILED) {
             munmap((void*)dma_state.fir_buffer, FIR_BUFFER_SIZE);
         }
-        if (dma_state.dma_regs != MAP_FAILED) {
-            munmap((void*)dma_state.dma_regs, DMA_MAP_SIZE);
+        if (dma_state.tx_dma_regs != MAP_FAILED) {
+            munmap((void*)dma_state.tx_dma_regs, FIR_TX_DMA_MAP_SIZE);
         }
         if (dma_state.mem_fd >= 0) {
             close(dma_state.mem_fd);

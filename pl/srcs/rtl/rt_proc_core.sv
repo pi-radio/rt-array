@@ -15,14 +15,14 @@
 `include "rt_proc_core.svh"
 
 module rt_proc_core #(
-    parameter int DW = 32,
+    parameter int     DW                = 32,
     parameter integer SAMPLES_PER_CLOCK = 2,
-    parameter int DW_DATA = DW * SAMPLES_PER_CLOCK,  // bit width of all data buses
-    parameter int COEFF_WIDTH = 16,
+    parameter int     DW_DATA           = DW * SAMPLES_PER_CLOCK,  // bit width of all data buses
+    parameter int     COEFF_WIDTH       = 16,
     // axil parameters
-    parameter integer DATA_WIDTH = 32,
-    parameter integer ADDR_WIDTH = 8,
-    parameter integer STRB_WIDTH = (DATA_WIDTH / 8)
+    parameter integer DATA_WIDTH        = 32,
+    parameter integer ADDR_WIDTH        = 8,
+    parameter integer STRB_WIDTH        = (DATA_WIDTH / 8)
 ) (
     input clk,
     input reset_n,
@@ -51,27 +51,37 @@ module rt_proc_core #(
     output reg                   s_axil_rvalid,
     input  wire                  s_axil_rready,
 
-    input logic [COEFF_WIDTH * `NCH - 1:0] fir0_reload_tdata,
-    input logic [`NCH - 1:0] fir0_reload_tvalid,
-    output logic [`NCH - 1:0] fir0_reload_tready,
-    input logic [`NCH - 1:0] fir0_reload_tlast,
+    input  logic [COEFF_WIDTH * `NCH - 1:0] rx_fir0_reload_tdata,
+    input  logic [              `NCH - 1:0] rx_fir0_reload_tvalid,
+    output logic [              `NCH - 1:0] rx_fir0_reload_tready,
+    input  logic [              `NCH - 1:0] rx_fir0_reload_tlast,
 
-    input logic [COEFF_WIDTH * `NCH - 1:0] fir1_reload_tdata,
-    input logic [`NCH - 1:0] fir1_reload_tvalid,
-    output logic [`NCH - 1:0] fir1_reload_tready,
-    input logic [`NCH - 1:0] fir1_reload_tlast,
+    input  logic [COEFF_WIDTH * `NCH - 1:0] rx_fir1_reload_tdata,
+    input  logic [              `NCH - 1:0] rx_fir1_reload_tvalid,
+    output logic [              `NCH - 1:0] rx_fir1_reload_tready,
+    input  logic [              `NCH - 1:0] rx_fir1_reload_tlast,
+
+    input  logic [COEFF_WIDTH * `NCH - 1:0] tx_fir0_reload_tdata,
+    input  logic [              `NCH - 1:0] tx_fir0_reload_tvalid,
+    output logic [              `NCH - 1:0] tx_fir0_reload_tready,
+    input  logic [              `NCH - 1:0] tx_fir0_reload_tlast,
+
+    input  logic [COEFF_WIDTH * `NCH - 1:0] tx_fir1_reload_tdata,
+    input  logic [              `NCH - 1:0] tx_fir1_reload_tvalid,
+    output logic [              `NCH - 1:0] tx_fir1_reload_tready,
+    input  logic [              `NCH - 1:0] tx_fir1_reload_tlast,
 
     output logic [1:0] operation_mode,
 
     // no backpressure on the data ports.
     // adc0 to adc7
-    input logic [DW_DATA * `N_ANT - 1:0] s_tdata,
-    input logic s_tvalid,
-    output logic s_tready,
+    input  logic [DW_DATA * `N_ANT - 1:0] s_tdata,
+    input  logic                          s_tvalid,
+    output logic                          s_tready,
 
     // dac0 to dac7
     output logic [DW_DATA * `N_ANT - 1:0] m_tdata,
-    output logic m_tvalid
+    output logic                          m_tvalid
 );
 
     localparam int W_FIR0_OUT = 16;
@@ -80,7 +90,8 @@ module rt_proc_core #(
 
     localparam int W_FIR0_FULL_PRECISION = 40;
     localparam int I_FIR0_FULL_PRECISION = 8;
-    localparam int F_FIR0_FULL_PRECISION = 30; // note that the ip sign extends the data from 38 to 40 bits
+    localparam int F_FIR0_FULL_PRECISION =
+        30;  // note that the ip sign extends the data from 38 to 40 bits
 
     localparam int W_FIR1_OUT = 16;
     localparam int I_FIR1_OUT = 1;
@@ -88,7 +99,8 @@ module rt_proc_core #(
 
     localparam int W_FIR1_FULL_PRECISION = 40;
     localparam int I_FIR1_FULL_PRECISION = 10;
-    localparam int F_FIR1_FULL_PRECISION = 30; // note that the ip sign extends the data from 38 to 40 bits
+    localparam int F_FIR1_FULL_PRECISION =
+        30;  // note that the ip sign extends the data from 38 to 40 bits
 
     localparam int DW_FFT_OUT = 16;
     localparam int DW_REAL = DW / 2;
@@ -96,11 +108,11 @@ module rt_proc_core #(
     // internal params
     fir_t param_fir0_tdata;
     logic param_fir0_tvalid;
-    logic [`NCH - 1:0] param_fir0_tready;
+    logic param_fir0_tready;
 
     fir_t param_fir1_tdata;
     logic param_fir1_tvalid;
-    logic [`NCH - 1:0] param_fir1_tready;
+    logic param_fir1_tready;
 
     fir_t param_fir0_tdata_axil;
     logic param_fir0_tvalid_axil;
@@ -116,38 +128,19 @@ module rt_proc_core #(
     logic [`NCH - 1:0] s_tready_i;
 
     logic s_tready_tx;
-    logic [`NCH - 1:0] s_tready_rx;
+    logic s_tready_rx;
 
-    // fir0 input
-    logic [DW_DATA * `NCH - 1:0] fir0_in_tdata_i;
-    logic [`NCH - 1:0] fir0_in_tvalid_i;
-    logic [`NCH - 1:0] fir0_in_tready_i;
-
-    logic [2 * W_FIR0_FULL_PRECISION * SAMPLES_PER_CLOCK * `NCH - 1:0] fir0_full_tdata;
-    logic signed [W_FIR0_OUT - 1:0] fir0_tdata_i[`NCH * SAMPLES_PER_CLOCK];
-    logic signed [W_FIR0_OUT - 1:0] fir0_tdata_q[`NCH * SAMPLES_PER_CLOCK];
-
-    logic [`NCH - 1:0] fir0_tvalid;
-
-    logic [2 * W_FIR1_FULL_PRECISION * SAMPLES_PER_CLOCK * `NCH - 1:0] fir1_full_tdata;
-    logic signed [W_FIR1_OUT - 1:0] fir1_tdata_i[`NCH * SAMPLES_PER_CLOCK];
-    logic signed [W_FIR1_OUT - 1:0] fir1_tdata_q[`NCH * SAMPLES_PER_CLOCK];
-    logic [`NCH - 1:0] fir1_tvalid;
-
-    logic [2 * `NCH * SAMPLES_PER_CLOCK * W_FIR1_OUT - 1:0] summation_in;
-
-    logic [2 * W_FIR0_OUT * (`NCH) * SAMPLES_PER_CLOCK - 1:0] phaserot_tdata;
-    logic phaserot_tvalid;
-
-    logic tx_rx;
-    logic [32 * `NCH - 1:0] phase;
-
-    logic tx_rx_axil;
+    logic [32 * `NCH - 1:0] phase_tx, phase_rx;
+    logic [32 * `NCH - 1:0] phase_tx_axil, phase_rx_axil;
     logic [1:0] operation_mode_axil;
-    logic [32 * `NCH - 1:0] phase_axil;
+
+    // TODO: generate overflow signals and map
+    logic [7:0] overflow;
+    // TODO: generate errors and map
+    logic [7:0] error;
 
     axil_io axil_io_inst (
-        .clk(axil_clk),
+        .clk    (axil_clk),
         .reset_n(axil_reset_n),
 
         .s_axil_awaddr (s_axil_awaddr),
@@ -170,9 +163,10 @@ module rt_proc_core #(
         .s_axil_rvalid (s_axil_rvalid),
         .s_axil_rready (s_axil_rready),
 
-        .phase(phase_axil),
+        .phase_tx(phase_tx_axil),
+        .phase_rx(phase_rx_axil),
+
         .operation_mode(operation_mode_axil),
-        .tx_rx(tx_rx_axil),
 
         .fir0_tdata (param_fir0_tdata_axil),
         .fir0_tvalid(param_fir0_tvalid_axil),
@@ -183,21 +177,10 @@ module rt_proc_core #(
         .fir1_tready(param_fir1_tready_axil)
     );
 
-    xpm_cdc_single #(
-        .DEST_SYNC_FF(4),  // DECIMAL; range: 2-10
-        .INIT_SYNC_FF(1),   // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
-        .SIM_ASSERT_CHK(1),  // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-        .SRC_INPUT_REG(1)  // DECIMAL; 0=do not register input, 1=register input
-    ) xpm_cdc_tx_rx (
-        .dest_out(tx_rx),
-        .dest_clk(clk),
-        .src_clk (axil_clk),
-        .src_in  (tx_rx_axil)
-    );
-
     xpm_cdc_array_single #(
         .DEST_SYNC_FF(4),  // DECIMAL; range: 2-10
-        .INIT_SYNC_FF(1),   // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
+        .INIT_SYNC_FF(
+            1),  // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
         .SIM_ASSERT_CHK(1),  // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
         .SRC_INPUT_REG(1),  // DECIMAL; 0=do not register input, 1=register input
         .WIDTH(2)
@@ -209,25 +192,38 @@ module rt_proc_core #(
     );
 
     xpm_cdc_array_single #(
-        .DEST_SYNC_FF(4),
-        .INIT_SYNC_FF(0),
+        .DEST_SYNC_FF  (4),
+        .INIT_SYNC_FF  (0),
         .SIM_ASSERT_CHK(0),
-        .SRC_INPUT_REG(1),
-        .WIDTH(32 * `NCH)
-    ) xpm_cdc_array_phase (
-        .dest_out(phase),
+        .SRC_INPUT_REG (1),
+        .WIDTH         (32 * `NCH)
+    ) xpm_cdc_array_phase_tx (
+        .dest_out(phase_tx),
         .dest_clk(clk),
         .src_clk (axil_clk),
-        .src_in  (phase_axil)
+        .src_in  (phase_tx_axil)
+    );
+
+    xpm_cdc_array_single #(
+        .DEST_SYNC_FF  (4),
+        .INIT_SYNC_FF  (0),
+        .SIM_ASSERT_CHK(0),
+        .SRC_INPUT_REG (1),
+        .WIDTH         (32 * `NCH)
+    ) xpm_cdc_array_phase_rx (
+        .dest_out(phase_rx),
+        .dest_clk(clk),
+        .src_clk (axil_clk),
+        .src_in  (phase_rx_axil)
     );
 
     xpm_fifo_axis #(
         .CDC_SYNC_STAGES(2),
-        .CLOCKING_MODE("independent_clock"),
-        .FIFO_DEPTH(16),
-        .TDATA_WIDTH(8)
+        .CLOCKING_MODE  ("independent_clock"),
+        .FIFO_DEPTH     (16),
+        .TDATA_WIDTH    (8)
     ) xpm_fifo_cdc_fir0 (
-        .s_aclk(axil_clk),
+        .s_aclk   (axil_clk),
         .s_aresetn(axil_reset_n),
 
         .s_axis_tready(param_fir0_tready_axil),
@@ -238,16 +234,16 @@ module rt_proc_core #(
 
         .m_axis_tdata (param_fir0_tdata),
         .m_axis_tvalid(param_fir0_tvalid),
-        .m_axis_tready(param_fir0_tready[0])
+        .m_axis_tready(param_fir0_tready)
     );
 
     xpm_fifo_axis #(
         .CDC_SYNC_STAGES(2),
-        .CLOCKING_MODE("independent_clock"),
-        .FIFO_DEPTH(16),
-        .TDATA_WIDTH(8)
+        .CLOCKING_MODE  ("independent_clock"),
+        .FIFO_DEPTH     (16),
+        .TDATA_WIDTH    (8)
     ) xpm_fifo_cdc_fir1 (
-        .s_aclk(axil_clk),
+        .s_aclk   (axil_clk),
         .s_aresetn(axil_reset_n),
 
         .s_axis_tready(param_fir1_tready_axil),
@@ -258,199 +254,112 @@ module rt_proc_core #(
 
         .m_axis_tdata (param_fir1_tdata),
         .m_axis_tvalid(param_fir1_tvalid),
-        .m_axis_tready(param_fir1_tready[0])
+        .m_axis_tready(param_fir1_tready)
     );
 
     always_comb begin
-        if (tx_rx) begin
-            s_tready = s_tready_rx[0];
-        end else begin
-            s_tready = s_tready_tx;
-        end
+        s_tready = s_tready_tx & s_tready_rx;
     end
 
     // broadcast for tx
     axis_broadcast #(
-        .DW(DW_DATA),
-        .NUM(`NCH),
-        .EN_IN_BUFFER(1),
+        .DW           (DW_DATA),
+        .NUM          (`NCH),
+        .EN_IN_BUFFER (1),
         .EN_OUT_BUFFER(0)
     ) broadcast (
-        .clk(clk),
+        .clk    (clk),
         .reset_n(reset_n),
 
         .s_tdata (s_tdata[0+:DW_DATA]),  // take adc0
-        .s_tvalid(s_tvalid & (!tx_rx)),
+        .s_tvalid(s_tvalid),
         .s_tready(s_tready_tx),
 
-        .m_tdata (s_tdata_i),   // create 7 copies
+        .m_tdata (s_tdata_i),          // create 7 copies
         .m_tvalid(s_tvalid_i),
-        .m_tready(s_tready_i)
+        .m_tready({7{s_tready_i[0]}})
     );
 
-    genvar gi, gj;
-    generate
-        // Q formats:
-        // input data = Q1.15, coeffs = Q1.15. output data = Q8.30 full precision
-        // after truncation, output data = Q3.13
-        // adc 1 to adc 7 are used for rx beamforming
-        for (gi = 0; gi < `NCH; gi++) begin
-            axis_mux #(
-                .DW(DW_DATA)
-            ) axis_mux_inst (
-                .clk(clk),
-                .reset_n(reset_n),
-
-                .sel({1'b0,tx_rx}),  // 0 for tx bf
-
-                // select b/w 7 copies of adc0
-                .s0_tdata(s_tdata_i[gi*DW_DATA+:DW_DATA]),
-                .s0_tvalid(s_tvalid_i[gi]),
-                .s0_tready(s_tready_i[gi]),
-                // rx adc1 to adc7
-                .s1_tdata (s_tdata[DW_DATA+gi*DW_DATA+:DW_DATA]),
-                .s1_tvalid(s_tvalid),
-                .s1_tready(s_tready_rx[gi]),
-
-                .s2_tdata('h0),
-                .s2_tvalid('h0),
-                .s2_tready(),
-
-                .m_tdata(fir0_in_tdata_i[gi*DW_DATA+:DW_DATA]),
-                .m_tvalid(fir0_in_tvalid_i[gi]),
-                .m_tready(1'b1)  // non blocking
-            );
-
-            fracDelayFIR fir0 (
-                .aclk   (clk),
-                .aresetn(reset_n),
-
-                .s_axis_data_tvalid(fir0_in_tvalid_i[gi]),
-                .s_axis_data_tready(fir0_in_tready_i[gi]),  // dangling
-                .s_axis_data_tdata(fir0_in_tdata_i[gi*DW_DATA+:DW_DATA]),
-
-                .s_axis_config_tvalid(param_fir0_tvalid),
-                .s_axis_config_tready(param_fir0_tready[gi]),
-                .s_axis_config_tdata (param_fir0_tdata),
-
-                .s_axis_reload_tvalid(fir0_reload_tvalid[gi]),
-                .s_axis_reload_tready(fir0_reload_tready[gi]),
-                .s_axis_reload_tlast (fir0_reload_tlast[gi]),
-                .s_axis_reload_tdata (fir0_reload_tdata[gi*COEFF_WIDTH+:COEFF_WIDTH]),
-
-                .m_axis_data_tvalid(fir0_tvalid[gi]),
-                .m_axis_data_tdata (fir0_full_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_FULL_PRECISION)+:(2*W_FIR0_FULL_PRECISION) * SAMPLES_PER_CLOCK])
-            );
-
-            // TODO: make this 2x?
-            for (gj = 0; gj < SAMPLES_PER_CLOCK; gj++) begin
-                xcmult #(
-                    .W_A(W_FIR0_OUT),
-                    .I_A(I_FIR0_OUT),
-                    .W_B(16),
-                    .I_B(1),
-                    .W_P(W_FIR0_OUT),
-                    .I_P(I_FIR0_OUT)
-                ) xcmult_inst (
-                    .clk(clk),
-                    .en(1'b1),
-                    .a({
-                        fir0_tdata_q[gi*SAMPLES_PER_CLOCK+gj], fir0_tdata_i[gi*SAMPLES_PER_CLOCK+gj]
-                    }),
-                    .b(phase[gi*32+:32]),
-                    .p(phaserot_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_OUT)+gj*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT)])
-                );
-            end
-            // Q formats:
-            // input data = Q3.13, coeffs = Q1.15. output data = Q9.28 full precision
-            // after truncation, output data = Q5.11
-
-            GainCrrtFir fir1 (
-                .aclk   (clk),
-                .aresetn(reset_n),
-
-                .s_axis_data_tvalid(phaserot_tvalid), // make this 3 cycles delayed version of fir0_tvalid
-                .s_axis_data_tready(),  // unconnected
-                .s_axis_data_tdata(phaserot_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT) * SAMPLES_PER_CLOCK]),
-                // .s_axis_data_tlast (phaserot_tlast),
-
-                .s_axis_config_tvalid(param_fir1_tvalid),
-                .s_axis_config_tready(param_fir1_tready[gi]),
-                .s_axis_config_tdata (param_fir1_tdata),
-
-                .s_axis_reload_tvalid(fir1_reload_tvalid[gi]),
-                .s_axis_reload_tready(fir1_reload_tready[gi]),
-                .s_axis_reload_tlast (fir1_reload_tlast[gi]),
-                .s_axis_reload_tdata (fir1_reload_tdata[gi*COEFF_WIDTH+:COEFF_WIDTH]),
-
-                .m_axis_data_tvalid(fir1_tvalid[gi]),
-                .m_axis_data_tdata (fir1_full_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR1_FULL_PRECISION)+:(2*W_FIR1_FULL_PRECISION) * SAMPLES_PER_CLOCK])
-            );
-        end
-    endgenerate
-
-    // truncating fir outputs to 16 bits for next stage processing
-    always_comb begin
-        for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
-            int addr_real = 2 * i * W_FIR0_FULL_PRECISION;
-            int addr_imag = addr_real + W_FIR0_FULL_PRECISION;
-            logic signed [W_FIR0_FULL_PRECISION - 1:0] temp_i, temp_q;
-
-            temp_i = fir0_full_tdata[addr_real +: W_FIR0_FULL_PRECISION];
-            temp_q = fir0_full_tdata[addr_imag +: W_FIR0_FULL_PRECISION];
-
-            fir0_tdata_i[i] = temp_i >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
-            fir0_tdata_q[i] =  temp_q >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
-        end
-    end
-
-    always_comb begin
-        for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
-            int addr_real = 2 * i * W_FIR1_FULL_PRECISION;
-            int addr_imag = addr_real + W_FIR1_FULL_PRECISION;
-            logic signed [W_FIR1_FULL_PRECISION - 1:0] temp_i, temp_q;
-
-            temp_i = fir1_full_tdata[addr_real +: W_FIR1_FULL_PRECISION];
-            temp_q = fir1_full_tdata[addr_imag +: W_FIR1_FULL_PRECISION];
-
-            // first 7 are real parts, next 7 are imag parts
-            fir1_tdata_i[i] = temp_i >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
-            fir1_tdata_q[i] = temp_q >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
-        end
-
-        for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
-            int addr_real = 2*i*W_FIR1_OUT;
-            int addr_imag = addr_real + W_FIR1_OUT;
-
-            summation_in[addr_real +:W_FIR1_OUT] = fir1_tdata_i[i];
-            summation_in[addr_imag +:W_FIR1_OUT] = fir1_tdata_q[i];
-        end
-    end
-
-    reg [5:0] valid_d = 0;
-    always_ff @(posedge clk) begin
-        if (!reset_n) begin
-            valid_d <= 0;
-        end else begin
-            valid_d <= {valid_d[4:0], fir0_tvalid[0]};
-        end
-    end
-    assign phaserot_tvalid = valid_d[5];
-
-    rt_summation #(
-        .DW_FIR(W_FIR1_OUT),
-        .DW_OUT(DW / 2),
-        .SAMPLES_PER_CLOCK(SAMPLES_PER_CLOCK)
-    ) rt_summation_inst (
-        .clk(clk),
+    core_unit #(
+        .DW               (DW),
+        .SAMPLES_PER_CLOCK(SAMPLES_PER_CLOCK),
+        .DW_DATA          (DW_DATA),
+        .COEFF_WIDTH      (COEFF_WIDTH),
+        .DATA_WIDTH       (DATA_WIDTH),
+        .ADDR_WIDTH       (ADDR_WIDTH),
+        .STRB_WIDTH       (STRB_WIDTH),
+        .IS_TX            (1)
+    ) unit_tx (
+        .clk    (clk),
         .reset_n(reset_n),
 
-        .sel_tx_rx(tx_rx),
+        .fir0_reload_tdata (tx_fir0_reload_tdata),
+        .fir0_reload_tvalid(tx_fir0_reload_tvalid),
+        .fir0_reload_tready(tx_fir0_reload_tready),
+        .fir0_reload_tlast (tx_fir0_reload_tlast),
 
-        .s_tdata (summation_in),
-        .s_tvalid(fir1_tvalid[0]),
+        .param_fir0_tdata (param_fir0_tdata),   // common signal for both tx and rx
+        .param_fir0_tvalid(param_fir0_tvalid),
+        .param_fir0_tready(param_fir0_tready),
 
-        .m_tdata (m_tdata),
+        .fir1_reload_tdata (tx_fir1_reload_tdata),
+        .fir1_reload_tvalid(tx_fir1_reload_tvalid),
+        .fir1_reload_tready(tx_fir1_reload_tready),
+        .fir1_reload_tlast (tx_fir1_reload_tlast),
+
+        .param_fir1_tdata (param_fir1_tdata),   // common signal for both tx and rx
+        .param_fir1_tvalid(param_fir1_tvalid),
+        .param_fir1_tready(param_fir1_tready),
+        
+        .phase(phase_tx),
+
+        .s_tdata (s_tdata_i),
+        .s_tvalid(s_tvalid_i[0]),
+        .s_tready(s_tready_i[0]),
+
+        .m_tdata (m_tdata[DW_DATA+:DW_DATA*`NCH]),  // dac1 to dac7
         .m_tvalid(m_tvalid)
     );
+
+    core_unit #(
+        .DW               (DW),
+        .SAMPLES_PER_CLOCK(SAMPLES_PER_CLOCK),
+        .DW_DATA          (DW_DATA),
+        .COEFF_WIDTH      (COEFF_WIDTH),
+        .DATA_WIDTH       (DATA_WIDTH),
+        .ADDR_WIDTH       (ADDR_WIDTH),
+        .STRB_WIDTH       (STRB_WIDTH),
+        .IS_TX            (0)
+    ) unit_rx (
+        .clk    (clk),
+        .reset_n(reset_n),
+
+        .fir0_reload_tdata (rx_fir0_reload_tdata),
+        .fir0_reload_tvalid(rx_fir0_reload_tvalid),
+        .fir0_reload_tready(rx_fir0_reload_tready),
+        .fir0_reload_tlast (rx_fir0_reload_tlast),
+
+        .param_fir0_tdata (param_fir0_tdata),   // common signal for both tx and rx
+        .param_fir0_tvalid(param_fir0_tvalid),
+        .param_fir0_tready(),                   // dangling
+
+        .fir1_reload_tdata (rx_fir1_reload_tdata),
+        .fir1_reload_tvalid(rx_fir1_reload_tvalid),
+        .fir1_reload_tready(rx_fir1_reload_tready),
+        .fir1_reload_tlast (rx_fir1_reload_tlast),
+
+        .param_fir1_tdata (param_fir1_tdata),   // common signal for both tx and rx
+        .param_fir1_tvalid(param_fir1_tvalid),
+        .param_fir1_tready(),                   // dangling
+
+        .phase(phase_rx),
+
+        .s_tdata (s_tdata[DW_DATA+:DW_DATA*`NCH]),
+        .s_tvalid(s_tvalid),
+        .s_tready(s_tready_rx),
+
+        .m_tdata (m_tdata[0+:DW_DATA]),  // dac0
+        .m_tvalid()                      // TODO: check if sync b/w tx and rx is required?
+    );
+
 endmodule

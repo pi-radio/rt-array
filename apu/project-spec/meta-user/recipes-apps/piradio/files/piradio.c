@@ -131,7 +131,7 @@ int main()
                 
                 if (args == endptr) {
                     strcpy(response, "Error: Missing FIR index\r\n");
-                } else if (fir_index > 13) {
+                } else if (fir_index > AXI_RTCTRL_NUMFIR - 1) {
                     strcpy(response, "Error: Invalid FIR index\r\n");
                 } else {
                     // Skip whitespace to get to hex data
