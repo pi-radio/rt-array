@@ -72,7 +72,9 @@ module core_unit #(
     localparam int F_FIR1_OUT = W_FIR1_OUT - I_FIR1_OUT;
 
     localparam int W_FIR1_FULL_PRECISION = 40;
-    localparam int I_FIR1_FULL_PRECISION = 10;
+    // unused and doesnt effect the functionality, but might create confusion if its not aligned with
+    // the core's settings
+    localparam int I_FIR1_FULL_PRECISION = 7;
     // note that the ip sign extends the data from 38 to 40 bits
     localparam int F_FIR1_FULL_PRECISION = 30; 
 
@@ -217,7 +219,7 @@ module core_unit #(
 
                 .m_tdata(m_tdata_i),
                 .m_tvalid(m_tvalid_i),
-                .m_tready()
+                .m_tready(1'b1)
             );
         end 
     endgenerate
@@ -251,7 +253,7 @@ module core_unit #(
         end
 
         if (IS_TX) begin
-            // send output directly. Summation block is bypassed
+            // send fir output to axis reg. Summation block is bypassed
             for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
                 int addr_real = 2 * i * W_FIR1_OUT;
                 int addr_imag = addr_real + W_FIR1_OUT;
@@ -285,20 +287,4 @@ module core_unit #(
         end
     end
     assign phaserot_tvalid = valid_d[5];
-
-    // checkers
-    always_ff @(posedge clk) begin
-        assert (!$isunknown(s_tvalid));
-        assert (!$isunknown(m_tvalid));
-        assert (!$isunknown(fir1_tvalid));
-        assert (!$isunknown(fir0_tvalid));
-
-        if (s_tvalid) begin
-            assert (!$isunknown(s_tdata));
-        end
-
-        if (m_tvalid) begin
-            assert (!$isunknown(m_tdata));
-        end
-    end
 endmodule

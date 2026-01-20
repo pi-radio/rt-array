@@ -22,15 +22,15 @@ module axis_reg #(
 
     input wire [DW - 1:0] s_tdata,
     input wire s_tvalid,
-    output reg s_tready,
+    output wire s_tready,
 
     output wire [DW - 1:0] m_tdata,
     output wire m_tvalid,
-    input reg m_tready
+    input wire m_tready
 );
 
-reg [DW - 1:0] m_tdata_i[DEPTH];
-reg [DEPTH - 1:0] m_tvalid_i;
+reg [DW - 1:0]m_tdata_i[0:DEPTH-1];
+reg [DEPTH - 1:0] m_tvalid_i = 0;
 integer i;
 
 always @(posedge clk) begin
