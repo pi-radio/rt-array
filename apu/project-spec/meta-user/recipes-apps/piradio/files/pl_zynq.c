@@ -190,23 +190,26 @@ void pl_axisswitch_write32(uint32_t offset, uint32_t val, uint8_t is_tx)
 // 0x80000000 to disble
 void pl_axisswitch_setidx(uint32_t idx, uint8_t is_tx) {
     // this is assuming we send all coeffs from host every time we want to reload
+    uint32_t mux_offset = is_tx ? AXI_AXISSWITCH_TX_MUX_OFFSET : AXI_AXISSWITCH_RX_MUX_OFFSET;
     if(idx > 0) {
         // disable previous route
-        pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*(idx - 1), 0x80000000, is_tx);    
+        pl_axisswitch_write32(mux_offset + 4*(idx - 1), 0x80000000, is_tx);    
     }
     // enable this route
-    pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*idx, 0x00000000, is_tx);
+    pl_axisswitch_write32(mux_offset + 4*idx, 0x00000000, is_tx);
 
     // load above config (self clearing)
     pl_axisswitch_write32(0, 0x00000002, is_tx);
 }
 
 void pl_axisswitch_reset() {
-    uint32_t addr;
     uint32_t wdata = 0x80000000;
-    // disable all routes
-    for(int i = 0; i < AXISWITCH_NUM_FIR; i++) {
-        pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*i, wdata, 0); // rx reset
-        pl_axisswitch_write32(AXISSWITCH_MUX_OFFSET + 4*i, wdata, 1); // tx reset
+    // disable all routes for rx
+    for(int i = 0; i < AXI_AXISSWITCH_RX_NUM_FIR; i++) {
+        pl_axisswitch_write32(AXI_AXISSWITCH_RX_MUX_OFFSET + 4*i, wdata, 0);
+    }
+    // disable all routes for tx
+    for(int i = 0; i < AXI_AXISSWITCH_TX_NUM_FIR; i++) {
+        pl_axisswitch_write32(AXI_AXISSWITCH_TX_MUX_OFFSET + 4*i, wdata, 1);
     }
 }

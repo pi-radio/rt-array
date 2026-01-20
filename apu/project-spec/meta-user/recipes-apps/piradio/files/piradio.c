@@ -153,12 +153,14 @@ int main()
                         
                         uint32_t num_coeffs = 0;
                         if (parse_fir_coefficients(hex_data, &num_coeffs) == 0) {
-                            // COnfigure the switch to fir index
-                            pl_axisswitch_setidx(fir_index);
+                            // Map 0-13 to TX, 14-27 to RX
+                            uint8_t is_tx = (fir_index < 14) ? 1 : 0;
+                            uint32_t local_idx = is_tx ? (uint32_t)fir_index : (uint32_t)(fir_index - 14);
+                            pl_axisswitch_setidx(local_idx, is_tx);
                             // Trigger DMA transfer
                             uint32_t transfer_size = dma_state.fir_data_size;
                             
-                            if (dma_transfer(dma_state.fir_buffer_phys, transfer_size) == 0) {
+                            if (dma_transfer(dma_state.fir_buffer_phys, transfer_size, is_tx) == 0) {
                                 strcpy(response, "OK\r\n");                                
                             } else {
                                 strcpy(response, "Error: DMA transfer failed\r\n");

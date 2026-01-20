@@ -8,7 +8,7 @@ fi
 
 if [ -f zcu111_rfsoc_trd_wrapper.xsa ]; then
 	echo "Found zcu111_rfsoc_trd_wrapper.xsa, continuing..."
-    petalinux-config --silentconfig --get-hw-description=../zcu111_rfsoc_trd_wrapper.xsa
+    petalinux-config --silentconfig --get-hw-description=zcu111_rfsoc_trd_wrapper.xsa
 else
 	echo "zcu111_rfsoc_trd_wrapper.xsa not found! Copy it to <root>/apu if you want to update the .xsa" >&2
     petalinux-config --silentconfig

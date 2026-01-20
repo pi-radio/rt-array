@@ -27,7 +27,7 @@
 #define AXI_AXISSWITCH_TX_MUX_OFFSET 0x40
 #define AXI_AXISSWITCH_TX_NUM_FIR AXI_RTCTRL_NUMFIR
 
-#define AXI_AXISSWITCH_RX_BASE_ADDR 0xB0080000
+#define AXI_AXISSWITCH_RX_BASE_ADDR 0xB00A0000
 #define AXI_AXISSWITCH_RX_ADDR_RANGE 0xFFFF
 #define AXI_AXISSWITCH_RX_MUX_OFFSET 0x40
 #define AXI_AXISSWITCH_RX_NUM_FIR AXI_RTCTRL_NUMFIR
@@ -59,7 +59,7 @@
 
 #define FIR_TX_DMA_BASE_ADDR               0xB0030000
 #define FIR_TX_DMA_MAP_SIZE                0x10000
-#define FIR_RX_DMA_BASE_ADDR               0xB0030000
+#define FIR_RX_DMA_BASE_ADDR               0xB0090000
 #define FIR_RX_DMA_MAP_SIZE                0x10000
 
 #define FIR_BUFFER_BASE             0x10000000ULL // check if DDR High is accessible
@@ -92,5 +92,5 @@ void     pl_rtctrl_set_firreload();
 // DMA function declarations
 int dma_init(void);
 void dma_cleanup(void);
-int dma_transfer(uint64_t src_addr, uint32_t length);
+int dma_transfer(uint64_t src_addr, uint32_t length, uint8_t is_tx);
 int parse_fir_coefficients(const char *hex_data, uint32_t *num_coeffs);
