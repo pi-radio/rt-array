@@ -14,6 +14,8 @@ else
     petalinux-config --silentconfig
 fi
 
+cp zcu111_rfsoc_trd_wrapper.xsa project-spec/meta-user/recipes-firmware/mts/files/system.xsa
+
 petalinux-build
 
 cd images/linux/

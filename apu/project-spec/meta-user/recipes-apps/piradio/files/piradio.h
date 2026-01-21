@@ -19,7 +19,7 @@
 
 #define FIR_FRACTIONAL_NTAPS 51
 // this is a symmetric filter. Total taps = 2 * NTAPS - 1
-#define FIR_GAINCORRECTION_NTAPS 26
+#define FIR_GAINCORRECTION_NTAPS 11
 
 // global DMA state
 struct dma_state_t {

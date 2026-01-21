@@ -15,4 +15,5 @@ components/yocto
 
 mts.bit.bin
 zcu111_rfsoc_trd_wrapper.bit
+zcu111_rfsoc_trd_wrapper.xsa
 zcu111_rfsoc_trd_wrapper.zip
