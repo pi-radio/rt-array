@@ -76,8 +76,17 @@
         minor-number = <9>;
         memory-region = <&plmem_pool1>;
         dmas = <&rt_core_system_axi_dma_0 0>;   /* MM2S channel */
-        dma-names = "fir";
+        dma-names = "firtx";
         size = <0x100000>; // (16mb) // change the plmem_pool1 allocation if you change this
         status = "okay";
     };  
+    pl_mem_fir_rx: pl_mem_fir_rx {
+        compatible = "xlnx,pl-mem";
+        minor-number = <10>;
+        memory-region = <&plmem_pool2>;
+        dmas = <&rt_core_system_axi_dma_1 0>;   /* MM2S channel */
+        dma-names = "firrx";
+        size = <0x100000>; // (16mb) // change the plmem_pool1 allocation if you change this
+        status = "okay";
+    };    
 };

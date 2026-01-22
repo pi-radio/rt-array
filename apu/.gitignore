@@ -4,7 +4,7 @@ build/
 images/linux/
 pre-built/linux/
 .petalinux/*
-!.petalinux/metadata
+# !.petalinux/metadata
 *.o
 *.jou
 *.log
@@ -13,6 +13,20 @@ components/yocto
 .Xil
 .statistics
 
+# generated files
+project-spec/configs/configs/
+project-spec/configs/rootfsconfigs/
+project-spec/configs/gen-machineconf.log*
+project-spec/configs/plnxtool.conf
+project-spec/configs/plnx_syshw_data
+project-spec/configs/xilinx-zcu111.conf
+
+# hardware artifacts
 mts.bit.bin
-zcu111_rfsoc_trd_wrapper.bit
-zcu111_rfsoc_trd_wrapper.zip
+*.bit
+*.mmi
+*.xsa
+*.zip
+
+#
+.old

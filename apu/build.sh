@@ -8,11 +8,13 @@ fi
 
 if [ -f zcu111_rfsoc_trd_wrapper.xsa ]; then
 	echo "Found zcu111_rfsoc_trd_wrapper.xsa, continuing..."
-    petalinux-config --silentconfig --get-hw-description=../zcu111_rfsoc_trd_wrapper.xsa
+    petalinux-config --silentconfig --get-hw-description=zcu111_rfsoc_trd_wrapper.xsa
 else
 	echo "zcu111_rfsoc_trd_wrapper.xsa not found! Copy it to <root>/apu if you want to update the .xsa" >&2
     petalinux-config --silentconfig
 fi
+
+cp zcu111_rfsoc_trd_wrapper.xsa project-spec/meta-user/recipes-firmware/mts/files/system.xsa
 
 petalinux-build
 
@@ -23,6 +25,8 @@ petalinux-package --force --boot \
 	--pmufw pmufw.elf \
 	--u-boot u-boot.elf \
 	--fpga system.bit
+
+mkdir -p tftp && cp Image rootfs.cpio.gz.u-boot system.dtb tftp/
 
 if [[ "${WIC:-0}" == "1" ]]; then
     echo "Generating WIC image"

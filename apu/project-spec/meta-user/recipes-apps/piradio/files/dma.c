@@ -3,14 +3,22 @@
 struct dma_state_t dma_state = {0};
 
 // DMA helper functions
-static inline void dma_write_reg(uint32_t offset, uint32_t value)
+static inline void dma_write_reg(uint32_t offset, uint32_t value, uint8_t is_tx)
 {
-    dma_state.dma_regs[offset >> 2] = value;
+    if(is_tx) {
+        dma_state.tx_dma_regs[offset >> 2] = value;
+    } else {
+        dma_state.rx_dma_regs[offset >> 2] = value;
+    }  
 }
 
-static inline uint32_t dma_read_reg(uint32_t offset)
+static inline uint32_t dma_read_reg(uint32_t offset, uint8_t is_tx)
 {
-    return dma_state.dma_regs[offset >> 2];
+    if(is_tx) {
+        return dma_state.tx_dma_regs[offset >> 2];
+    } else {
+        return dma_state.rx_dma_regs[offset >> 2];
+    }
 }
 
 int dma_init(void)
@@ -24,17 +32,29 @@ int dma_init(void)
         return -1;
     }
     
-    dma_state.dma_regs = (volatile uint32_t *)mmap(NULL, DMA_MAP_SIZE,
+    dma_state.tx_dma_regs = (volatile uint32_t *)mmap(NULL, FIR_TX_DMA_MAP_SIZE,
                                                      PROT_READ | PROT_WRITE,
                                                      MAP_SHARED,
                                                      dma_state.mem_fd,
-                                                     DMA_BASE_ADDR);
-    if (dma_state.dma_regs == MAP_FAILED) {
+                                                     FIR_TX_DMA_BASE_ADDR);
+    if (dma_state.tx_dma_regs == MAP_FAILED) {
         perror("Failed to mmap DMA registers");
         close(dma_state.mem_fd);
         return -1;
     }
-    
+
+    dma_state.rx_dma_regs = (volatile uint32_t *)mmap(NULL, FIR_RX_DMA_MAP_SIZE,
+                                                     PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED,
+                                                     dma_state.mem_fd,
+                                                     FIR_RX_DMA_BASE_ADDR);
+    if (dma_state.rx_dma_regs == MAP_FAILED) {
+        perror("Failed to mmap DMA registers");
+        munmap((void*)dma_state.tx_dma_regs, FIR_TX_DMA_MAP_SIZE); // cleanup
+        close(dma_state.mem_fd);
+        return -1;
+    }
+        
     // map FIR coeffs buffer
     dma_state.fir_buffer_phys = FIR_BUFFER_BASE;
     dma_state.fir_buffer = (volatile uint32_t *)mmap(NULL, FIR_BUFFER_SIZE,
@@ -44,26 +64,33 @@ int dma_init(void)
                                                        (off_t)dma_state.fir_buffer_phys);
     if (dma_state.fir_buffer == MAP_FAILED) {
         perror("Failed to mmap FIR buffer");
-        munmap((void*)dma_state.dma_regs, DMA_MAP_SIZE);
+        munmap((void*)dma_state.tx_dma_regs, FIR_TX_DMA_MAP_SIZE);
         close(dma_state.mem_fd);
         return -1;
     }
     
-    printf("  DMA registers mapped at %p\n", (void*)dma_state.dma_regs);
+    printf("  DMA registers mapped at %p\n", (void*)dma_state.tx_dma_regs);
     printf("  FIR buffer mapped at %p (phys: 0x%llx)\n", 
            (void*)dma_state.fir_buffer, 
            (unsigned long long)dma_state.fir_buffer_phys);
     
-    // Reset DMA
-    dma_write_reg(MM2S_CONTROL_REGISTER, RESET_DMA);
+    // Reset both DMAs
+    dma_write_reg(MM2S_CONTROL_REGISTER, RESET_DMA, 1);
+    dma_write_reg(MM2S_CONTROL_REGISTER, RESET_DMA, 0);
     usleep(100);
     
-    // check if DMA is responding
-    uint32_t status = dma_read_reg(MM2S_STATUS_REGISTER);
-    printf("  DMA status after reset: 0x%08x\n", status);
+    // check if DMAs are responding
+    uint32_t status_tx = dma_read_reg(MM2S_STATUS_REGISTER, 1);
+    uint32_t status_rx = dma_read_reg(MM2S_STATUS_REGISTER, 0);
+    printf("  TX DMA status after reset: 0x%08x\n", status_tx);
+    printf("  RX DMA status after reset: 0x%08x\n", status_rx);
     
-    if (status == 0xFFFFFFFF || status == 0x00000000) {
-        printf("  WARNING: DMA not responding! check hardware.\n");
+    if (status_tx == 0xFFFFFFFF || status_tx == 0x00000000) {
+        printf("  WARNING: TX DMA not responding! check hardware.\n");
+        // Continue anyway, might work
+    }
+    if (status_rx == 0xFFFFFFFF || status_rx == 0x00000000) {
+        printf("  WARNING: RX DMA not responding! check hardware.\n");
         // Continue anyway, might work
     }
     
@@ -74,10 +101,10 @@ int dma_init(void)
 }
 
 // check DMA status
-void dma_print_status(void)
+static void dma_print_status(uint8_t is_tx)
 {
-    uint32_t status = dma_read_reg(MM2S_STATUS_REGISTER);
-    printf("DMA Status: 0x%08x - ", status);
+    uint32_t status = dma_read_reg(MM2S_STATUS_REGISTER, is_tx);
+    printf("%s DMA Status: 0x%08x - ", is_tx ? "TX" : "RX", status);
     
     if (status & STATUS_HALTED) printf("HALTED ");
     else printf("RUNNING ");
@@ -93,7 +120,7 @@ void dma_print_status(void)
 }
 
 // trigger DMA transfer
-int dma_transfer(uint64_t src_addr, uint32_t length)
+int dma_transfer(uint64_t src_addr, uint32_t length, uint8_t is_tx)
 {
     if (!dma_state.initialized) {
         printf("ERROR: DMA not initialized\n");
@@ -105,24 +132,23 @@ int dma_transfer(uint64_t src_addr, uint32_t length)
     printf("  Length: %u bytes\n", length);
     
     // Reset DMA
-    dma_write_reg(MM2S_CONTROL_REGISTER, RESET_DMA);
+    dma_write_reg(MM2S_CONTROL_REGISTER, RESET_DMA, is_tx);
     usleep(100);
-    dma_print_status();
-
-    // dma_write_reg(MM2S_CONTROL_REGISTER, ENABLE_ALL_IRQ);
-    dma_write_reg(MM2S_CONTROL_REGISTER, RUN_DMA);
+    dma_print_status(is_tx);
+    // start DMA
+    dma_write_reg(MM2S_CONTROL_REGISTER, RUN_DMA, is_tx);
     
     // write source address (64-bit)
     uint32_t addr_low = (uint32_t)(src_addr & 0xFFFFFFFF);
     uint32_t addr_high = (uint32_t)(src_addr >> 32);
     
-    dma_write_reg(MM2S_SRC_ADDRESS_REGISTER, addr_low);
-    dma_write_reg(MM2S_SRC_ADDRESS_MSB, addr_high);
+    dma_write_reg(MM2S_SRC_ADDRESS_REGISTER, addr_low, is_tx);
+    dma_write_reg(MM2S_SRC_ADDRESS_MSB, addr_high, is_tx);
     
     printf("  Address written: 0x%08x%08x\n", addr_high, addr_low);
     
     // start transfer by writing length
-    dma_write_reg(MM2S_TRNSFR_LENGTH_REGISTER, length);
+    dma_write_reg(MM2S_TRNSFR_LENGTH_REGISTER, length, is_tx);
     
     // wait for completion with timeout
     int timeout = 10000;  // 10 seconds
@@ -130,12 +156,12 @@ int dma_transfer(uint64_t src_addr, uint32_t length)
     bool error = false;
     
     while (timeout > 0) {
-        uint32_t status = dma_read_reg(MM2S_STATUS_REGISTER);
+        uint32_t status = dma_read_reg(MM2S_STATUS_REGISTER, is_tx);
         
         // check for errors
         if (status & (STATUS_DMA_INTERNAL_ERR | STATUS_DMA_SLAVE_ERR | STATUS_DMA_DECODE_ERR)) {
             printf("  ERROR: DMA error detected!\n");
-            dma_print_status();
+            dma_print_status(is_tx);
             error = true;
             break;
         }
@@ -153,7 +179,7 @@ int dma_transfer(uint64_t src_addr, uint32_t length)
     
     if (!completed && !error) {
         printf("  ERROR: Transfer timeout\n");
-        dma_print_status();
+        dma_print_status(is_tx);
         return -1;
     }
     
@@ -214,7 +240,7 @@ int parse_fir_coefficients(const char *hex_data, uint32_t *num_coeffs)
         printf("FIR coefficients stored in buffer\n");
         return 0;
     } else {
-        printf("ERROR: Unsupported number of FIR coefficients (%u). Only 33 or 51 supported.\n", *num_coeffs);
+        printf("ERROR: Unsupported number of FIR coefficients (%u). Only %d (fir1) or %d (fir0) are supported.\n", *num_coeffs, FIR_FRACTIONAL_NTAPS, FIR_GAINCORRECTION_NTAPS);
         return -1;
     }
 
@@ -226,8 +252,11 @@ void dma_cleanup(void)
         if (dma_state.fir_buffer != MAP_FAILED) {
             munmap((void*)dma_state.fir_buffer, FIR_BUFFER_SIZE);
         }
-        if (dma_state.dma_regs != MAP_FAILED) {
-            munmap((void*)dma_state.dma_regs, DMA_MAP_SIZE);
+        if (dma_state.tx_dma_regs != MAP_FAILED) {
+            munmap((void*)dma_state.tx_dma_regs, FIR_TX_DMA_MAP_SIZE);
+        }
+        if (dma_state.rx_dma_regs != MAP_FAILED) {
+            munmap((void*)dma_state.rx_dma_regs, FIR_RX_DMA_MAP_SIZE);
         }
         if (dma_state.mem_fd >= 0) {
             close(dma_state.mem_fd);

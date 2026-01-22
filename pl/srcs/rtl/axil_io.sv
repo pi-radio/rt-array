@@ -31,9 +31,10 @@ module axil_io #(
     input  wire                  s_axil_rready
 
     // user ports here
-    , output reg [224 - 1:0] phase,
+    , output reg [224 - 1:0] phase_tx,
+    output reg [224 - 1:0] phase_rx,
+
     output reg [1:0] operation_mode,
-    output reg tx_rx,
 
     output reg [7:0] fir0_tdata,
     output reg fir0_tvalid,
@@ -174,17 +175,26 @@ module axil_io #(
     assign rready = s_axil_arvalid_i && (!s_axil_rvalid || s_axil_rready);
     logic fir_reload;
 
+
+    // reg space:
+    // 0 - CTRL register
+    // 1 to 7 - phase tx
+    // 8 to 14 - phase rx
     always_comb begin
         // reg_space[0]:
         // 0 for calibration, correction(real time) otherwise
         operation_mode = reg_space[0][0 +: 2];
-        tx_rx = (reg_space[0][8 +: 8] != 0); // 0 for tx, 1 for rx
+        // tx_rx = (reg_space[0][8 +: 8] != 0); // 0 for tx, 1 for rx
         // phase_reload = (reg_space[0][16 +: 8] == 0); // self clearing
         fir_reload = (reg_space[0][24 +: 8] != 0); // self clearing
 
         for (int i = 0; i < 7; i++) begin
-            phase[32*i+:32] = reg_space[i + 1];
+            phase_tx[32*i+:32] = reg_space[i + 1];
         end
+
+        for (int i = 0; i < 7; i++) begin
+            phase_rx[32*i+:32] = reg_space[i + 8];
+        end        
     end
 
     // axis state machine handling
