@@ -71,7 +71,7 @@ module rt_proc_core_v #(
     // output wire s_tready, // no backpressure in real time processing
 
     // to dac0 to dac7
-    output wire [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] m_tdata,
+    output reg  [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] m_tdata,
     output wire                                        m_tvalid
     // input wire m_tready  // no backpressure in real time processing
 );
@@ -89,7 +89,7 @@ module rt_proc_core_v #(
     reg     [                         NCH/2 - 1:0] rx_fir1_reload_tvalid_i;
 
     reg     [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] s_tdata_i;
-    reg     [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] m_tdata_i;
+    wire    [DW * SAMPLES_PER_CLOCK * N_ANT - 1:0] m_tdata_i;
 
     // pikcing 16 bits out of incoming 32-bit data from DMA
     integer                                        i;
@@ -118,11 +118,22 @@ module rt_proc_core_v #(
 
     // changing the interface ordering. 
     always @(*) begin
+        // mapping from ADC: q1 q0 i1 i0
+        // mapping to core: q1 i1 q0 i0
         for (i = 0; i < N_ANT; i = i + 1) begin  // adc -> core
             s_tdata_i[64*i+0+:16]  = s_tdata[64*i+0+:16];  // i0  -> i0
             s_tdata_i[64*i+16+:16] = s_tdata[64*i+32+:16];  // i1  -> q0
             s_tdata_i[64*i+32+:16] = s_tdata[64*i+16+:16];  // q0  -> i1
             s_tdata_i[64*i+48+:16] = s_tdata[64*i+48+:16];  // q1  -> q1
+        end
+        // mapping from ADC: q1 q0 i1 i0
+        // mapping from core: q1 i1 q0 i0
+        // mapping to DAC: i1 q1 i0 q0    
+        for (i = 0; i < N_ANT; i = i + 1) begin
+            m_tdata[64*i+16+:16] = m_tdata_i[64*i+0+:16];
+            m_tdata[64*i+0+:16]  = m_tdata_i[64*i+16+:16];
+            m_tdata[64*i+48+:16] = m_tdata_i[64*i+32+:16];
+            m_tdata[64*i+32+:16] = m_tdata_i[64*i+48+:16];
         end
     end
 
@@ -182,7 +193,7 @@ module rt_proc_core_v #(
         .s_tvalid(s_tvalid),
         .s_tready(s_tready),
 
-        .m_tdata (m_tdata),
+        .m_tdata (m_tdata_i),
         .m_tvalid(m_tvalid)
     );
 
