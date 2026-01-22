@@ -42,7 +42,10 @@ module axil_io #(
 
     output reg [7:0] fir1_tdata,
     output reg fir1_tvalid,
-    input reg fir1_tready
+    input reg fir1_tready,
+
+    input reg [95:0] overflow_tx,
+    input reg [95:0] overflow_rx
 );
 
     reg [DATA_WIDTH-1:0] reg_space[0:N_REGS-1];
@@ -60,6 +63,15 @@ module axil_io #(
 
     wire                  wready;
     wire                  rready;
+
+    // axis state machine handling
+    enum logic [1:0] {
+        RD_PARAM,
+        WR_FIR0,
+        WR_FIR1,
+        CLEAR
+    }
+        state, next;
 
     // write addr channel
     axis_skidbuffer #(
@@ -165,6 +177,14 @@ module axil_io #(
                 end
             end else if (state == CLEAR) begin
                 reg_space[0] <= reg_space[0] & 32'h00FF_FFFF;
+            end else begin
+                reg_space[16] <= reg_space[16] | overflow_tx[0 +: 32];  
+                reg_space[17] <= reg_space[17] | overflow_tx[32 +: 32];
+                reg_space[18] <= reg_space[18] | overflow_tx[64 +: 32];
+
+                reg_space[19] <= reg_space[19] | overflow_rx[0 +: 32];
+                reg_space[20] <= reg_space[20] | overflow_rx[32 +: 32];
+                reg_space[21] <= reg_space[21] | overflow_rx[64 +: 32];                
             end
         end
     end
@@ -180,6 +200,9 @@ module axil_io #(
     // 0 - CTRL register
     // 1 to 7 - phase tx
     // 8 to 14 - phase rx
+    // 15 - scaling
+    // 16, 17, 18 - overflow tx
+    // 19, 20, 21 - overflow rx
     always_comb begin
         // reg_space[0]:
         // 0 for calibration, correction(real time) otherwise
@@ -196,15 +219,6 @@ module axil_io #(
             phase_rx[32*i+:32] = reg_space[i + 8];
         end        
     end
-
-    // axis state machine handling
-    enum logic [1:0] {
-        RD_PARAM,
-        WR_FIR0,
-        WR_FIR1,
-        CLEAR
-    }
-        state, next;
 
     always_ff @(posedge clk) begin
         if (~reset_n) begin

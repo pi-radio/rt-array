@@ -28,7 +28,8 @@ module rt_summation #(
     input wire s_tvalid,
     // 2x for i/q - 1 output stream
     output reg [DW_OUT * 2 * SAMPLES_PER_CLOCK  - 1:0] m_tdata,
-    output reg m_tvalid
+    output reg m_tvalid,
+    output reg [7:0] overflow
 );
 
     // logic for summation across all channels
@@ -95,9 +96,13 @@ module rt_summation #(
     end
 
     always_comb begin
+        overflow = 0;
         for (int i = 0; i < SAMPLES_PER_CLOCK; i++) begin
             out_i[i] = sum_i[i]; // >>> 3;
             out_q[i] = sum_q[i]; // >>> 3;
+
+            overflow[i] = !((&sum_i[i][DW_FIR + 2 -: 4]) | !(|sum_i[i][DW_FIR + 2 -: 4]));
+            overflow[SAMPLES_PER_CLOCK + i] = !((&sum_q[i][DW_FIR + 2 -: 4]) | !(|sum_q[i][DW_FIR + 2 -: 4]));
         end
     end
 

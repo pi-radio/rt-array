@@ -25,13 +25,17 @@ module xcmult #(
     input              en,
     input  [2*W_A-1:0] a,
     input  [2*W_B-1:0] b,
-    output [2*W_P-1:0] p
+    output [2*W_P-1:0] p,
+    output             overflow
 );
     localparam int F_A = W_A - I_A;
     localparam int F_B = W_B - I_B;
     localparam int F_P = W_P - I_P;
+    localparam int I_P_INT = I_A + I_B + 1;
     localparam int F_P_INT = F_A + F_B;
+    localparam int W_P_INT = I_P_INT + F_P_INT;
     localparam int SHIFT = (F_P_INT - F_P);
+    localparam int NUM_OVERFLOW = (I_P_INT - I_P) + 1;
 
     logic signed [W_A-1:0] ai_d, ai_dd, ai_ddd, ai_dddd;
     logic signed [W_A-1:0] ar_d, ar_dd, ar_ddd, ar_dddd;
@@ -46,11 +50,14 @@ module xcmult #(
     logic signed [W_B - 1:0] br, bi;
     logic signed [W_P - 1:0] pr, pi;
 
+    logic overflow_r, overflow_i;
+
     assign ar = a[0+:W_A];
     assign ai = a[W_A+:W_A];
     assign br = b[0+:W_B];
     assign bi = b[W_B+:W_B];
     assign p  = {pi, pr};
+    assign overflow = overflow_r || overflow_i;
 
     always_comb begin
         if (SHIFT > 0) begin
@@ -60,6 +67,11 @@ module xcmult #(
             pr = pr_int <<< (-SHIFT);
             pi = pi_int <<< (-SHIFT);
         end
+        
+        overflow_r = 0;
+        overflow_i = 0;
+        overflow_r = !((&pr_int[W_P_INT - 1 -: NUM_OVERFLOW]) | !(|pr_int[W_P_INT - 1 -: NUM_OVERFLOW]));
+        overflow_i = !((&pi_int[W_P_INT - 1 -: NUM_OVERFLOW]) | !(|pi_int[W_P_INT - 1 -: NUM_OVERFLOW]));
     end
 
     always @(posedge clk) begin

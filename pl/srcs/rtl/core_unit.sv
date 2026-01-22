@@ -56,7 +56,8 @@ module core_unit #(
     output logic                        s_tready,
 
     output logic [W_M_TDATA - 1:0] m_tdata,
-    output logic                   m_tvalid
+    output logic                   m_tvalid,
+    output logic [95:0] overflow
 );
     localparam int W_FIR0_OUT = 16;
     localparam int I_FIR0_OUT = 1;
@@ -77,6 +78,18 @@ module core_unit #(
     localparam int I_FIR1_FULL_PRECISION = 7;
     // note that the ip sign extends the data from 38 to 40 bits
     localparam int F_FIR1_FULL_PRECISION = 30; 
+
+    localparam NUM_OVERFLOW_0 = (I_FIR0_FULL_PRECISION - I_FIR0_OUT + 1);
+    localparam NUM_OVERFLOW_1 = (I_FIR0_FULL_PRECISION - I_FIR0_OUT + 1);
+    localparam NUM_OVERFLOW_2 = (I_FIR1_FULL_PRECISION - I_FIR1_OUT + 1);
+
+    // overflow 0 for post FIR0
+    // overflow 1 for post FIR1
+    // overflow 2 for post phase correction
+    // overflow 3 for post summation (only for rx)
+    logic [31:0] overflow_0, overflow_1;
+    logic [13:0] overflow_2; // module generates only 14 bits
+    logic [7:0] overflow_3;
 
     // internal signals to avoid warnings
     logic [`NCH - 1:0] s_tready_i;
@@ -154,7 +167,8 @@ module core_unit #(
                     }),
                     .b(phase[gi*32+:32]),
                     .p(phaserot_tdata[gi*SAMPLES_PER_CLOCK*(2*W_FIR0_OUT)+
-                                      gj*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT)])
+                                      gj*(2*W_FIR0_OUT)+:(2*W_FIR0_OUT)]),
+                    .overflow(overflow_2[gi * SAMPLES_PER_CLOCK + gj])
                 );
             end
             // Q formats:
@@ -200,9 +214,11 @@ module core_unit #(
                 .s_tvalid(fir1_tvalid[0]),
 
                 .m_tdata (m_tdata_i),
-                .m_tvalid(m_tvalid_i)
+                .m_tvalid(m_tvalid_i),
+                .overflow(overflow_3)
             );
         end else begin
+            assign overflow_3 = 0;
             // delay the data by 2 cycles so that both tx and rx are aligned. 
             // might not be strictly necessary, but helps in testing if latency is same.
             axis_reg # (
@@ -224,7 +240,9 @@ module core_unit #(
         end 
     endgenerate
 
+    // assign overflow = {2'd0, overflow_2, overflow_1, overflow_0};
     always_comb begin
+        overflow_0 = 0;
         for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
             int addr_real = 2 * i * W_FIR0_FULL_PRECISION;
             int addr_imag = addr_real + W_FIR0_FULL_PRECISION;
@@ -233,12 +251,16 @@ module core_unit #(
             temp_i          = fir0_full_tdata[addr_real+:W_FIR0_FULL_PRECISION];
             temp_q          = fir0_full_tdata[addr_imag+:W_FIR0_FULL_PRECISION];
 
+            overflow_0[i] = !((&temp_i[W_FIR0_FULL_PRECISION - 1 -: NUM_OVERFLOW_0]) | !(|temp_i[W_FIR0_FULL_PRECISION - 1 -: NUM_OVERFLOW_0]));
+            overflow_0[SAMPLES_PER_CLOCK * `NCH + i] = !((&temp_q[W_FIR0_FULL_PRECISION - 1 -: NUM_OVERFLOW_0]) | !(|temp_q[W_FIR0_FULL_PRECISION - 1 -: NUM_OVERFLOW_0]));
+
             fir0_tdata_i[i] = temp_i >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
             fir0_tdata_q[i] = temp_q >>> (F_FIR0_FULL_PRECISION - F_FIR0_OUT);
         end
     end
 
     always_comb begin
+        overflow_1 = 0;
         for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
             int addr_real = 2 * i * W_FIR1_FULL_PRECISION;
             int addr_imag = addr_real + W_FIR1_FULL_PRECISION;
@@ -246,6 +268,9 @@ module core_unit #(
 
             temp_i          = fir1_full_tdata[addr_real+:W_FIR1_FULL_PRECISION];
             temp_q          = fir1_full_tdata[addr_imag+:W_FIR1_FULL_PRECISION];
+
+            overflow_1[i] = !((&temp_i[W_FIR1_FULL_PRECISION - 1 -: NUM_OVERFLOW_1]) | !(|temp_i[W_FIR1_FULL_PRECISION - 1 -: NUM_OVERFLOW_1]));
+            overflow_1[SAMPLES_PER_CLOCK * `NCH + i] = !((&temp_q[W_FIR1_FULL_PRECISION - 1 -: NUM_OVERFLOW_1]) | !(|temp_q[W_FIR1_FULL_PRECISION - 1 -: NUM_OVERFLOW_1]));
 
             // first 7 are real parts, next 7 are imag parts
             fir1_tdata_i[i] = temp_i >>> (F_FIR1_FULL_PRECISION - F_FIR1_OUT);
@@ -287,4 +312,10 @@ module core_unit #(
         end
     end
     assign phaserot_tvalid = valid_d[5];
+
+    logic [95:0] overflow_i;
+    always_ff @(posedge clk) begin
+       overflow_i <= {{8'd0, overflow_3}, {2'd0, overflow_2}, overflow_1, overflow_0};     
+       overflow <= overflow_i;
+    end
 endmodule

@@ -134,8 +134,8 @@ module rt_proc_core #(
     logic [32 * `NCH - 1:0] phase_tx_axil, phase_rx_axil;
     logic [1:0] operation_mode_axil;
 
-    // TODO: generate overflow signals and map
-    logic [7:0] overflow;
+    logic [95:0] overflow_tx, overflow_rx;
+    logic [95:0] overflow_tx_axil, overflow_rx_axil;
     // TODO: generate errors and map
     logic [7:0] error;
 
@@ -175,6 +175,37 @@ module rt_proc_core #(
         .fir1_tdata (param_fir1_tdata_axil),
         .fir1_tvalid(param_fir1_tvalid_axil),
         .fir1_tready(param_fir1_tready_axil)
+
+        ,.overflow_tx(overflow_tx_axil),
+        .overflow_rx(overflow_rx_axil)
+    );
+
+    xpm_cdc_array_single #(
+        .DEST_SYNC_FF(4),  // DECIMAL; range: 2-10
+        .INIT_SYNC_FF(
+            1),  // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
+        .SIM_ASSERT_CHK(1),  // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+        .SRC_INPUT_REG(1),  // DECIMAL; 0=do not register input, 1=register input
+        .WIDTH(96)
+    ) xpm_cdc_overflow_tx (
+        .dest_out(overflow_tx_axil),
+        .dest_clk(axil_clk),
+        .src_clk (clk),
+        .src_in  (overflow_tx)
+    );
+
+    xpm_cdc_array_single #(
+        .DEST_SYNC_FF(4),  // DECIMAL; range: 2-10
+        .INIT_SYNC_FF(
+            1),  // DECIMAL; 0=disable simulation init values, 1=enable simulation init values
+        .SIM_ASSERT_CHK(1),  // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
+        .SRC_INPUT_REG(1),  // DECIMAL; 0=do not register input, 1=register input
+        .WIDTH(96)
+    ) xpm_cdc_overflow_rx (
+        .dest_out(overflow_rx_axil),
+        .dest_clk(axil_clk),
+        .src_clk (clk),
+        .src_in  (overflow_rx)
     );
 
     xpm_cdc_array_single #(
@@ -318,7 +349,8 @@ module rt_proc_core #(
         .s_tready(s_tready_i[0]),
 
         .m_tdata (m_tdata[DW_DATA+:DW_DATA*`NCH]),  // dac1 to dac7
-        .m_tvalid(m_tvalid)
+        .m_tvalid(m_tvalid),
+        .overflow(overflow_tx)
     );
 
     core_unit #(
@@ -359,7 +391,8 @@ module rt_proc_core #(
         .s_tready(s_tready_rx),
 
         .m_tdata (m_tdata[0+:DW_DATA]),  // dac0
-        .m_tvalid()                      // TODO: check if sync b/w tx and rx is required?
+        .m_tvalid(),
+        .overflow(overflow_rx)
     );
 
 endmodule
