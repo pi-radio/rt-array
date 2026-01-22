@@ -178,7 +178,7 @@ module rt_proc_core_v #(
         .rx_fir1_reload_tready(rx_fir_reload_tready[13:7]),
         .rx_fir1_reload_tlast (rx_fir_reload_tlast[13:7]),
 
-        .s_tdata (s_tdata),
+        .s_tdata (s_tdata_i),
         .s_tvalid(s_tvalid),
         .s_tready(s_tready),
 
