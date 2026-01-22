@@ -15,7 +15,7 @@
 #define AXI_RTCTRL_MAX_OFFSET (AXI_RTCTRL_NUM_REGS * 4)
 // number of parallel processing channels
 #define AXI_RTCTRL_NCH 7
-#define AXI_RTCTRL_NUMFIR (AXI_RTCTRL_NCH * 2)
+#define AXI_RTCTRL_NUMFIR (AXI_RTCTRL_NCH * 2 * 2) // x2 for fir0 and fir1, x2 for tx+rx
 #define AXI_RTCTRL_PHASE_OFFSET 0x4
 #define AXI_RTCTRL_NUM_PHASES 14 // 7 + 7 for tx + rx
 // FIRRELOAD offset in reg0

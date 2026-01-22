@@ -240,7 +240,7 @@ int parse_fir_coefficients(const char *hex_data, uint32_t *num_coeffs)
         printf("FIR coefficients stored in buffer\n");
         return 0;
     } else {
-        printf("ERROR: Unsupported number of FIR coefficients (%u). Only 33 or 51 supported.\n", *num_coeffs);
+        printf("ERROR: Unsupported number of FIR coefficients (%u). Only %d (fir1) or %d (fir0) are supported.\n", *num_coeffs, FIR_FRACTIONAL_NTAPS, FIR_GAINCORRECTION_NTAPS);
         return -1;
     }
 
