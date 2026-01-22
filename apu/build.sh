@@ -26,6 +26,8 @@ petalinux-package --force --boot \
 	--u-boot u-boot.elf \
 	--fpga system.bit
 
+mkdir -p tftp && cp Image rootfs.cpio.gz.u-boot system.dtb tftp/
+
 if [[ "${WIC:-0}" == "1" ]]; then
     echo "Generating WIC image"
     cp ../../autostart.sh .
