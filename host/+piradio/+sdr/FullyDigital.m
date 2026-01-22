@@ -40,7 +40,7 @@ classdef FullyDigital < matlab.System
 
         % correction parameters
         ntaps_fir0 = 51; % number of taps for fractional delay filter
-        ntaps_fir1 = 51; % number of taps for gain correction filter        
+        ntaps_fir1 = 21; % number of taps for gain correction filter        
     end
     
     methods
@@ -837,12 +837,13 @@ classdef FullyDigital < matlab.System
         %        addr 04 - 1C: phase factors for ch1-ch7
         function status = disable_realtime(obj)
             % Disable realtime correction filters
-            status = write(obj.socket, "00000000"); % calibration mode
+            status = write(obj.socket, "RTCTRL 0 00000000"); % calibration mode
         end
 
-        function status = configure_realtime(obj, tx_rx_mode)
-            % tx_rx_mode - 0: TX mode, 1: RX mode
+        function status = configure_realtime(obj, is_debug)
+            % is_debug: when set to 1, overrides the filter taps with unit filters
             % status - 
+
             % Configure realtime correction filters and phase factors.
             % - FIR 0 (51 taps): fractional delay based on cal{Rx,Tx}Delay
             % - FIR 1 (51 taps, linear-phase): gain equalization from cal{Rx,Tx}Gains
@@ -850,23 +851,12 @@ classdef FullyDigital < matlab.System
 
             status = -1;
 
-            if tx_rx_mode == 1
-                calDelay = obj.calRxDelay;
-                calPhase = obj.calRxPhase;
-                calGains = obj.calRxGains;
-                ctrl_word = "01000101"; % fir reload + rx mode + correction mode
-            else
-                calDelay = obj.calTxDelay;
-                calPhase = obj.calTxPhase;
-                calGains = obj.calTxGains;
-                ctrl_word = "01000001"; % fir reload + tx mode + correction mode
-            end
-
             % this is written for odd number of taps for now
             
-            % double check the indices
+            %% TX Config
             for ch = 2:obj.nch % ch1 is used for self calib
-                d = calDelay(ch);
+                fprintf("----step 1: tx: channel %d----\n", ch);
+                d = obj.calTxDelay(ch);
 
                 % fracDelay()
                 taps = zeros(0,0);
@@ -882,6 +872,11 @@ classdef FullyDigital < matlab.System
                     taps = taps / acc;
                 end
 
+                if(is_debug)
+                    taps = zeros(1,51);
+                    taps(1) = 1;
+                end
+
                 % Convert to Q1.15 and pack: reverse tap order, 8 hex chars/coeff
                 q15 = int16(round(max(min(taps, 0.999969482421875), -1) * 2^15));
                 
@@ -895,23 +890,68 @@ classdef FullyDigital < matlab.System
                 write(obj.socket, sprintf("FIRCOEFF %d %s\n", fir_index, blob));
                 pause(0.5);
             end
+            %% RX config
+            for ch = 2:obj.nch % ch1 is used for self calib
+                fprintf("----step 1: rx: channel %d----\n", ch);
+                d = obj.calRxDelay(ch);
+
+                % fracDelay()
+                taps = zeros(0,0);
+                n0 = (obj.ntaps_fir0-1)/2;
+                for index = -n0:n0;
+                    delay = index + d;
+                    taps = [taps sinc(delay)];
+                end
+
+                % normalize
+                acc = sum(taps);
+                if acc ~= 0
+                    taps = taps / acc;
+                end
+
+                if(is_debug)
+                    taps = zeros(1,51);
+                    taps(1) = 1;
+                end
+
+                % Convert to Q1.15 and pack: reverse tap order, 8 hex chars/coeff
+                q15 = int16(round(max(min(taps, 0.999969482421875), -1) * 2^15));
+                
+                blob = '';
+                for idx = obj.ntaps_fir0-1:-1:0
+                    word = uint32(typecast(q15(idx+1), 'uint16'));
+                    blob = [blob, sprintf('%08X', word)];
+                end
+
+                fir_index = ch + 12; % 14 to 20
+                write(obj.socket, sprintf("FIRCOEFF %d %s\n", fir_index, blob));
+                pause(0.5);
+            end
 
             % gain correction firs
-            nfft = size(calGains, 2);
             for ch = 2:obj.nch % ch1 is used for self calib
+                fprintf("----step 2: tx: channel %d----\n", ch);
                 n1 = (obj.ntaps_fir1-1)/2;
-                gain = squeeze(calGains(ch, :));
-                % TODO: construct a filter from gain curve
+
                 gain_coeffs = zeros(1, obj.ntaps_fir1);
+                if(is_debug)
+                    gain_coeffs = zeros(1,obj.ntaps_fir1);
+                    % set center coeff to 1
+                    gain_coeffs((obj.ntaps_fir1 + 1)/2) = 1;                    
+                else
+                    % TODO: construct a filter from gain curve
+                    gain = squeeze(obj.calTxGains(ch, :));
+                    gain_coeffs
+                end
                 % Convert to Q1.15
                 q15 = int16(round(max(min(gain_coeffs, 0.999969482421875), -1) * 2^15));
                 
                 % only write unique coefficients (center..0)
                 % TODO: everything is written for odd ntaps
-                n_unique = n1 + 1; % 26 for 51 taps                
+                n_unique = n1 + 1; % 26 for 51 taps, 11 for 21 taps
                 blob = '';
-                for idx = n_unique-1:-1:0
-                    word = uint32(typecast(q15(idx+1), 'uint16'));
+                for idx = 1:1:n_unique
+                    word = uint32(typecast(q15(idx), 'uint16'));
                     blob = [blob, sprintf('%08X', word)];
                 end
 
@@ -919,13 +959,49 @@ classdef FullyDigital < matlab.System
                 write(obj.socket, sprintf("FIRCOEFF %d %s\n", fir_index, blob));
                 pause(0.5);
             end
+            for ch = 2:obj.nch % ch1 is used for self calib
+                fprintf("----step 2: rx: channel %d----\n", ch);
+                n1 = (obj.ntaps_fir1-1)/2;
+                
+                gain_coeffs = zeros(1, obj.ntaps_fir1);
+                if(is_debug)
+                    gain_coeffs = zeros(1,obj.ntaps_fir1);
+                    % set center coeff to 1
+                    gain_coeffs((obj.ntaps_fir1 + 1)/2) = 1;                    
+                else 
+                    % TODO: construct a filter from gain curve
+                    gain = squeeze(obj.calRxGains(ch, :));
+                    gain_coeffs
+                end
+                % Convert to Q1.15
+                q15 = int16(round(max(min(gain_coeffs, 0.999969482421875), -1) * 2^15));
+                
+                % only write unique coefficients (center..0)
+                % TODO: everything is written for odd ntaps
+                n_unique = n1 + 1; % 26 for 51 taps                
+                blob = '';
+                for idx = 1:1:n_unique
+                    word = uint32(typecast(q15(idx), 'uint16'));
+                    blob = [blob, sprintf('%08X', word)];
+                end
+
+                fir_index = ch + 19; % 21 to 27
+                write(obj.socket, sprintf("FIRCOEFF %d %s\n", fir_index, blob));
+                pause(0.5);
+            end
 
             % phase factors
             for ch = 2:obj.nch
-                ph = calPhase(ch);
+                fprintf("----step 3: tx: channel %d----\n", ch);
+                ph = obj.calTxPhase(ch);
                 
                 re = cos(ph);
                 im = sin(ph);
+                
+                if(is_debug)
+                    re = 1;
+                    im = 0;
+                end
                 
                 % todo: sfi is more reliable in matlab
                 re_q15 = int16(round(max(min(re, 0.999969482421875), -1) * 2^15));
@@ -934,11 +1010,38 @@ classdef FullyDigital < matlab.System
                 re_hex = upper(dec2hex(typecast(re_q15,'uint16'),4));
                 im_hex = upper(dec2hex(typecast(im_q15,'uint16'),4));
                                 
+                % 4:4:28
                 addr = 4*(ch - 2) + 4;
                 write(obj.socket, sprintf("RTCTRL %s %s%s\n", dec2hex(addr), im_hex, re_hex));
                 pause(0.1);
             end
 
+            for ch = 2:obj.nch
+                fprintf("----step 3: rx: channel %d----\n", ch);
+                ph = obj.calRxPhase(ch);
+                
+                re = cos(ph);
+                im = sin(ph);
+
+                if(is_debug)
+                    re = 1;
+                    im = 0;
+                end
+        
+                % todo: sfi is more reliable in matlab
+                re_q15 = int16(round(max(min(re, 0.999969482421875), -1) * 2^15));
+                im_q15 = int16(round(max(min(im, 0.999969482421875), -1) * 2^15));
+                
+                re_hex = upper(dec2hex(typecast(re_q15,'uint16'),4));
+                im_hex = upper(dec2hex(typecast(im_q15,'uint16'),4));
+                                
+                % 32:4:56
+                addr = 4*(ch - 2) + 32;
+                write(obj.socket, sprintf("RTCTRL %s %s%s\n", dec2hex(addr), im_hex, re_hex));
+                pause(0.1);
+            end
+
+            ctrl_word = "01000001"; % fir reload + correction mode
             % reload fir and set mode (TX/RX + correction enable)
             write(obj.socket, sprintf("RTCTRL 0 %s\n", ctrl_word));
             
