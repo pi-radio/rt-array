@@ -81,16 +81,28 @@ module axis_demux #(
         m0_tvalid  = 0;
         s_tready_i = 0;
 
+        // only modes 0 and 1 are used for operations
+        // modes 2 and 3 are only for debugging
         case (sel)
             0: begin  // calib mode
                 s_tready_i = m0_tready;
                 m0_tdata   = s_tdata_i;
                 m0_tvalid  = s_tvalid_i;
             end
-            1: begin  // correction mode
-                s_tready_i = m1_tready;
+            1: begin  
+                // correction mode: data is sent to both real time flow for correction 
+                // and the non-real-time flow for monitoring. 
                 m1_tdata   = s_tdata_i;
-                m1_tvalid  = s_tvalid_i;
+                m0_tdata   = s_tdata_i;
+                if({m1_tready, m0_tready} == 2'b11) begin
+                    m1_tvalid  = s_tvalid_i;
+                    m0_tvalid = s_tvalid_i;    
+                    s_tready_i = m1_tready;
+                end else begin
+                    m0_tvalid = 0;
+                    m1_tvalid = 0;
+                    s_tready_i = 0;
+                end 
             end
             2: begin  // bypass mode - tx + rx 
                 s_tready_i = m2_tready;
