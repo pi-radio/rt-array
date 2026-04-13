@@ -107,8 +107,9 @@ foreach x $c {
 puts "[report_property $x -file $proj_dir/$proj_name.ip_prop/$x.txt]"
 }
 
-import_files
-puts "PASS_MSG: Importing files to the design Successful"
+# removed this to avoid creating multiple copies of the source files
+# import_files
+# puts "PASS_MSG: Importing files to the design Successful"
 
 set cores [exec getconf _NPROCESSORS_ONLN]
 set jobs [expr {$cores > 8 ? $cores - 8: 4}]

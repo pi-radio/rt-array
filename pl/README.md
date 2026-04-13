@@ -23,3 +23,8 @@ To create the simulation project and run the testbench
 ```bash
 make rt_sim
 ```
+
+To regenerate the bd script after any changes, run
+```tcl
+write_bd_tcl scripts/rt_sim_bd.tcl -force
+```

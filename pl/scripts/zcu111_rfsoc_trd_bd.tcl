@@ -775,13 +775,14 @@ proc create_hier_cell_rt_core_system { parentCell nameHier } {
   set system_ila_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_1 ]
   set_property -dict [list \
     CONFIG.C_ADV_TRIGGER {true} \
-    CONFIG.C_DATA_DEPTH {8192} \
+    CONFIG.C_DATA_DEPTH {1024} \
     CONFIG.C_EN_STRG_QUAL {1} \
-    CONFIG.C_NUM_MONITOR_SLOTS {2} \
-    CONFIG.C_SLOT {0} \
+    CONFIG.C_NUM_MONITOR_SLOTS {4} \
+    CONFIG.C_SLOT {3} \
     CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
     CONFIG.C_SLOT_1_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
     CONFIG.C_SLOT_2_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
+    CONFIG.C_SLOT_3_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
   ] $system_ila_1
 
 
@@ -860,7 +861,9 @@ proc create_hier_cell_rt_core_system { parentCell nameHier } {
   connect_bd_intf_net -intf_net axis_combiner_0_M_AXIS [get_bd_intf_pins adc_out] [get_bd_intf_pins axis_demux_0/s]
   connect_bd_intf_net -intf_net [get_bd_intf_nets axis_combiner_0_M_AXIS] [get_bd_intf_pins adc_out] [get_bd_intf_pins system_ila_1/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net axis_data_fifo_0_M_AXIS [get_bd_intf_pins axis_data_fifo_0/M_AXIS] [get_bd_intf_pins axis_switch_0/S00_AXIS]
+  connect_bd_intf_net -intf_net [get_bd_intf_nets axis_data_fifo_0_M_AXIS] [get_bd_intf_pins axis_data_fifo_0/M_AXIS] [get_bd_intf_pins system_ila_1/SLOT_2_AXIS]
   connect_bd_intf_net -intf_net axis_data_fifo_1_M_AXIS [get_bd_intf_pins axis_data_fifo_1/M_AXIS] [get_bd_intf_pins axis_switch_1/S00_AXIS]
+  connect_bd_intf_net -intf_net [get_bd_intf_nets axis_data_fifo_1_M_AXIS] [get_bd_intf_pins axis_data_fifo_1/M_AXIS] [get_bd_intf_pins system_ila_1/SLOT_3_AXIS]
   connect_bd_intf_net -intf_net axis_data_fifo_3_M_AXIS [get_bd_intf_pins bypass] [get_bd_intf_pins axis_data_fifo_3/M_AXIS]
   connect_bd_intf_net -intf_net axis_demux_0_m0 [get_bd_intf_pins non_rt_m_axis] [get_bd_intf_pins axis_demux_0/m0]
   connect_bd_intf_net -intf_net axis_demux_0_m1 [get_bd_intf_pins axis_demux_0/m1] [get_bd_intf_pins rt_proc_core_0/s]
@@ -902,17 +905,17 @@ proc create_hier_cell_rt_core_system { parentCell nameHier } {
   connect_bd_intf_net -intf_net smartconnect_0_M04_AXI [get_bd_intf_pins smartconnect_0/M04_AXI] [get_bd_intf_pins axis_switch_1/S_AXI_CTRL]
 
   # Create port connections
-  connect_bd_net -net Net [get_bd_pins s_axi_clk] [get_bd_pins axi_dma_0/s_axi_lite_aclk] [get_bd_pins smartconnect_0/aclk] [get_bd_pins axis_switch_0/s_axi_ctrl_aclk] [get_bd_pins system_ila_2/clk] [get_bd_pins rt_proc_core_0/axil_clk] [get_bd_pins axi_dma_1/s_axi_lite_aclk] [get_bd_pins axis_switch_1/s_axi_ctrl_aclk]
+  connect_bd_net -net Net [get_bd_pins s_axi_clk] [get_bd_pins axi_dma_0/s_axi_lite_aclk] [get_bd_pins smartconnect_0/aclk] [get_bd_pins axis_switch_0/s_axi_ctrl_aclk] [get_bd_pins system_ila_2/clk] [get_bd_pins axi_dma_1/s_axi_lite_aclk] [get_bd_pins axis_switch_1/s_axi_ctrl_aclk] [get_bd_pins rt_proc_core_0/axil_clk]
   connect_bd_net -net axi_dma_0_mm2s_introut [get_bd_pins axi_dma_0/mm2s_introut] [get_bd_pins mm2s_introut]
   connect_bd_net -net axi_dma_1_mm2s_introut [get_bd_pins axi_dma_1/mm2s_introut] [get_bd_pins mm2s_introut1]
   connect_bd_net -net c0_ddr4_ui_clk_1 [get_bd_pins c0_ddr4_ui_clk] [get_bd_pins axi_dma_0/m_axi_mm2s_aclk] [get_bd_pins axis_data_fifo_0/s_axis_aclk] [get_bd_pins axis_data_fifo_1/s_axis_aclk] [get_bd_pins axi_dma_1/m_axi_mm2s_aclk]
-  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_pins adc_clk] [get_bd_pins axis_switch_0/aclk] [get_bd_pins axis_combine_0/clk] [get_bd_pins system_ila_1/clk] [get_bd_pins axis_data_fifo_0/m_axis_aclk] [get_bd_pins axis_data_fifo_2/s_axis_aclk] [get_bd_pins xpm_cdc_gen_0/src_clk] [get_bd_pins axis_data_fifo_3/s_axis_aclk] [get_bd_pins axis_demux_0/clk] [get_bd_pins rt_proc_core_0/clk] [get_bd_pins axis_data_fifo_1/m_axis_aclk] [get_bd_pins axis_switch_1/aclk] [get_bd_pins axis_combine_1/clk]
+  connect_bd_net -net clk_wiz_0_clk_out1 [get_bd_pins adc_clk] [get_bd_pins axis_switch_0/aclk] [get_bd_pins axis_combine_0/clk] [get_bd_pins system_ila_1/clk] [get_bd_pins axis_data_fifo_0/m_axis_aclk] [get_bd_pins axis_data_fifo_2/s_axis_aclk] [get_bd_pins xpm_cdc_gen_0/src_clk] [get_bd_pins axis_data_fifo_3/s_axis_aclk] [get_bd_pins axis_data_fifo_1/m_axis_aclk] [get_bd_pins axis_switch_1/aclk] [get_bd_pins axis_combine_1/clk] [get_bd_pins rt_proc_core_0/clk] [get_bd_pins axis_demux_0/clk]
   connect_bd_net -net dest_clk_1 [get_bd_pins dac_clk] [get_bd_pins axis_data_fifo_2/m_axis_aclk] [get_bd_pins xpm_cdc_gen_0/dest_clk] [get_bd_pins axis_data_fifo_3/m_axis_aclk]
-  connect_bd_net -net peripheral_aresetn3_1 [get_bd_pins s_axi_aresetn] [get_bd_pins axi_dma_0/axi_resetn] [get_bd_pins smartconnect_0/aresetn] [get_bd_pins axis_switch_0/s_axi_ctrl_aresetn] [get_bd_pins system_ila_2/resetn] [get_bd_pins rt_proc_core_0/axil_reset_n] [get_bd_pins axi_dma_1/axi_resetn] [get_bd_pins axis_switch_1/s_axi_ctrl_aresetn]
+  connect_bd_net -net peripheral_aresetn3_1 [get_bd_pins s_axi_aresetn] [get_bd_pins axi_dma_0/axi_resetn] [get_bd_pins smartconnect_0/aresetn] [get_bd_pins axis_switch_0/s_axi_ctrl_aresetn] [get_bd_pins system_ila_2/resetn] [get_bd_pins axi_dma_1/axi_resetn] [get_bd_pins axis_switch_1/s_axi_ctrl_aresetn] [get_bd_pins rt_proc_core_0/axil_reset_n]
   connect_bd_net -net peripheral_aresetn4_1 [get_bd_pins peripheral_aresetn4] [get_bd_pins system_ila_1/resetn] [get_bd_pins axis_data_fifo_3/s_axis_aresetn]
   connect_bd_net -net peripheral_aresetn_1 [get_bd_pins peripheral_aresetn] [get_bd_pins axis_data_fifo_0/s_axis_aresetn] [get_bd_pins axis_data_fifo_1/s_axis_aresetn]
   connect_bd_net -net rt_proc_core_0_operation_mode [get_bd_pins rt_proc_core_0/operation_mode] [get_bd_pins xpm_cdc_gen_0/src_in] [get_bd_pins axis_demux_0/sel]
-  connect_bd_net -net soft_reset_s_axis_aresetn_sync [get_bd_pins adc_reset_n] [get_bd_pins axis_switch_0/aresetn] [get_bd_pins axis_combine_0/reset_n] [get_bd_pins axis_data_fifo_2/s_axis_aresetn] [get_bd_pins axis_demux_0/reset_n] [get_bd_pins rt_proc_core_0/reset_n] [get_bd_pins axis_switch_1/aresetn] [get_bd_pins axis_combine_1/reset_n]
+  connect_bd_net -net soft_reset_s_axis_aresetn_sync [get_bd_pins adc_reset_n] [get_bd_pins axis_switch_0/aresetn] [get_bd_pins axis_combine_0/reset_n] [get_bd_pins axis_data_fifo_2/s_axis_aresetn] [get_bd_pins axis_switch_1/aresetn] [get_bd_pins axis_combine_1/reset_n] [get_bd_pins rt_proc_core_0/reset_n] [get_bd_pins axis_demux_0/reset_n]
   connect_bd_net -net xpm_cdc_gen_0_dest_out [get_bd_pins xpm_cdc_gen_0/dest_out] [get_bd_pins operation_mode]
 
   # Restore current instance
