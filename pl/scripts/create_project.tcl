@@ -37,6 +37,8 @@ set files [list \
  [file normalize "$srcs_dir/rtl/axis_broadcast.sv"] \
  [file normalize "$srcs_dir/rtl/rt_proc_core.svh"] \
  [file normalize "$srcs_dir/rtl/rt_proc_core.sv"] \
+ [file normalize "$srcs_dir/rtl/core_unit.sv"] \
+ [file normalize "$srcs_dir/rtl/axis_reg.v"] \
  [file normalize "$srcs_dir/rtl/rt_summation.sv"] \
  [file normalize "$srcs_dir/rtl/xcmult.sv"] \
  [file normalize "$srcs_dir/rtl/rt_proc_core_v.v"] \
