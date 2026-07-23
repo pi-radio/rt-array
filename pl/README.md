@@ -10,6 +10,7 @@ This project is based on the existing Pi-Radio non-realtime design, with extensi
 ### Build
 To create the project, run synthesis, implementation, generate the bitstream and export the hardware
 ```bash
+cd pl
 make vivado
 # or
 vivado -mode batch -source scripts/create_project.tcl -nolog -nojournal

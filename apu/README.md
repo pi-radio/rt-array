@@ -23,6 +23,7 @@ source <petalinux-install-path>/settings.sh
 ```
 2. Run the build script
 ``` bash
+cd apu
 chmod +x build.sh
 ./build.sh
 ```
