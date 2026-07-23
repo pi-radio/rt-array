@@ -27,9 +27,9 @@ cd apu
 chmod +x build.sh
 ./build.sh
 ```
-Optional env variables can be used to enable .wic and .bsp outputs
+Optional env variables can be used to enable `.wic.xz` and `.bsp` outputs.
 ```bash
-# Generate a .wic image at the end
+# Generate a .wic.xz image at the end
 WIC=1 ./build.sh
 
 # Generate .bsp file at the end
@@ -38,9 +38,9 @@ BSP=1 ./build.sh
 # to generate both
 WIC=1 BSP=1 ./build.sh
 ```
-Once the .wic file is generated (can be found under `apu/images/linux/`), flash the sdcard using tools like Balena Etcher or Win32 Disk Imager. 
+The `.wic.xz` file is generated under `apu/images/linux/`. Flash the SD card with a tool that supports compressed WIC images, such as Balena Etcher.
 
-The .wic image creates two partitions on the SD card: /boot and /root. All boot files including `autostart.sh` and `network.conf` files can be found in /boot partition.
+The `.wic.xz` image creates two partitions on the SD card: `/boot` and `/root`. The `/boot` partition contains all boot files, including `autostart.sh` and `network.conf`.
 
 Before booting the FPGA, update the `network.conf` file as required for your setup.
 ## Updating only FPGA binary

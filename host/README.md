@@ -11,6 +11,7 @@ The `FullyDigital` class has been updated with the following real-time control m
 function status = configure_realtime(obj, is_debug)
 % is_debug = false:
 %   Load the calibrated fractional-delay and phase-correction values.
+%   The gain-correction FIR coefficients are intentionally left empty.
 %
 % is_debug = true:
 %   Load unity filters and unity phase factors for datapath testing.
