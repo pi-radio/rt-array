@@ -8,18 +8,19 @@ This project is tested on MATLAB R2023b.
 The `FullyDigital` class has been updated with the following real-time control methods. They are used to configure the correction parameters, set operations mode in the RFSoC.
 
 ```m
-function status = configure_realtime(obj, tx_rx_mode)
-% writes fractional delay filter coeffs
-
-% writes gain correction filter coeffs
-
-% writes phase correction factors
-
-% writes opmode, fir reload
+function status = configure_realtime(obj, is_debug)
+% is_debug = false:
+%   Load the calibrated fractional-delay and phase-correction values.
+%
+% is_debug = true:
+%   Load unity filters and unity phase factors for datapath testing.
+%
+% The method configures both TX and RX, reloads the FIR filters, enables
+% correction mode, and returns 0 after issuing the configuration commands.
 end
 
 function status = disable_realtime(obj)
-% write opmode
+% Return the FPGA datapath to calibration/bypass mode.
 end
 ```
 
@@ -33,13 +34,10 @@ sdr1.fpga.configure('../../config/rfsoc_nyquist.cfg');
 sdr1.calRxArray();
 sdr1.calTxArray();
 
-% TX mode
-sdr1.configure_realtime(0);
+% load calibrated coeffs and switch to correction mode
+sdr1.configure_realtime(false);
 
-% RX mode
-sdr1.configure_realtime(1);
-
-% switch back to calibration mode
+% Switch back to calibration mode.
 sdr1.disable_realtime();
 ```
 
