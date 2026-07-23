@@ -6,6 +6,8 @@ else
     exit 1
 fi
 
+mkdir -p .petalinux
+
 if [ -f zcu111_rfsoc_trd_wrapper.xsa ]; then
 	echo "Found zcu111_rfsoc_trd_wrapper.xsa, continuing..."
     petalinux-config --silentconfig --get-hw-description=zcu111_rfsoc_trd_wrapper.xsa
