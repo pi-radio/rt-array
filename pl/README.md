@@ -20,10 +20,11 @@ The project is generated under `pl/project/` and the exported hardware .xsa can 
 ## Standalone Simulation Project
 
 ### Simulation
-To create the simulation project and run the testbench
+To create the simulation project and run the testbench, run the following from the `pl/` directory.
 ```bash
-make rt_sim
+make sim
 ```
+This command first runs a python script to generate the required stimulus files, and then runs the vivado script to build and run the simulation.
 
 To regenerate the bd script after any changes, run
 ```tcl
