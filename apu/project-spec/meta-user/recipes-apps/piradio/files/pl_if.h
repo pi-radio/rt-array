@@ -32,6 +32,11 @@
 #define AXI_AXISSWITCH_RX_MUX_OFFSET 0x40
 #define AXI_AXISSWITCH_RX_NUM_FIR AXI_RTCTRL_NUMFIR
 
+// FIXME
+#define AXI_GPIO_XY_BASE_ADDR 0xB00B0000
+#define AXI_GPIO_XY_ADDR_RANGE 0x1000
+#define AXI_GPIO_XY_TRI_OFFSET 0x04
+
 // DMA register offsets
 #define MM2S_CONTROL_REGISTER       0x00
 #define MM2S_STATUS_REGISTER        0x04
@@ -80,6 +85,9 @@ void     pl_spi_write32(uint32_t offset, uint32_t val);
 /* RT CTRL block */
 uint32_t pl_rtctrl_read32(uint32_t offset);
 void     pl_rtctrl_write32(uint32_t offset, uint32_t val);
+
+/* GPIO block */
+void     pl_gpio_xy_write32(uint32_t offset, uint32_t val);
 
 /* AXIS Switch block */
 uint32_t pl_axisswitch_read32(uint32_t offset, uint8_t is_tx);

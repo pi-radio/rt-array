@@ -16,6 +16,7 @@ static volatile uint8_t *spi_base;
 static volatile uint8_t *rtctrl_base;
 static volatile uint8_t *axisswitch_tx_base;
 static volatile uint8_t *axisswitch_rx_base;
+static volatile uint8_t *gpio_xy_base;
 
 int pl_init(void)
 {
@@ -74,6 +75,19 @@ int pl_init(void)
         perror("mmap axis switch");
         return -1;
     }
+
+    gpio_xy_base = mmap(NULL, AXI_GPIO_XY_ADDR_RANGE,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED,
+                    mem_fd, AXI_GPIO_XY_BASE_ADDR);
+
+    if (gpio_xy_base == MAP_FAILED) {
+        perror("mmap gpio");
+        return -1;
+    }
+
+    // set direction to output
+    pl_gpio_xy_write32(AXI_GPIO_XY_TRI_OFFSET, 0x00);
         
     // read check and reset phase factors
     pl_rtctrl_init();
@@ -94,6 +108,8 @@ void pl_deinit(void)
         munmap((void *)axisswitch_tx_base, AXI_AXISSWITCH_TX_ADDR_RANGE);       
     if (axisswitch_rx_base)
         munmap((void *)axisswitch_rx_base, AXI_AXISSWITCH_RX_ADDR_RANGE);      
+    if (gpio_xy_base)
+        munmap((void *)gpio_xy_base, AXI_GPIO_XY_ADDR_RANGE);
     if (mem_fd >= 0)
         close(mem_fd);
 }
@@ -126,6 +142,11 @@ uint32_t pl_rtctrl_read32(uint32_t offset)
 void pl_rtctrl_write32(uint32_t offset, uint32_t val)
 {
     *(volatile uint32_t *)(rtctrl_base + offset) = val;
+}
+
+void pl_gpio_xy_write32(uint32_t offset, uint32_t val)
+{
+    *(volatile uint32_t *)(gpio_xy_base + offset) = val;
 }
 
 void pl_rtctrl_init() {

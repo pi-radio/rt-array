@@ -80,6 +80,7 @@ int main()
     printf("  FIRCOEFF <idx> <hex>     - Load FIR coeffs (idx 0-13) and trigger DMA\n");
     printf("  RTCTRL <addr> <val>      - Write to RTCTRL registers\n");
     printf("  +<read> <skip> <nbytes>  - TFLOW command\n");
+    printf("  G<2_hex_chars>           - Set the eight GPIO XY outputs\n");
     printf("  <8_hex_chars>            - SPI command\n");
     printf("  disconnect               - Close connection\n\n");
 
@@ -173,6 +174,28 @@ int main()
             }
             else
             {
+                // command must start with G and in G01, G23, GAB format
+                if ((strlen(command) == 3) && (command[0] == 'G') &&
+                    isxdigit((unsigned char)command[1]) && // check for hex char
+                    isxdigit((unsigned char)command[2]) &&
+                    !islower((unsigned char)command[1]) && // check for upper case
+                    !islower((unsigned char)command[2]))
+                {
+                    uint8_t gpio_value;
+
+                    uint8_t high_nibble = (command[1] <= '9') ?
+                                          (uint8_t)(command[1] - '0') :
+                                          (uint8_t)(command[1] - 'A' + 10);
+                    uint8_t low_nibble = (command[2] <= '9') ?
+                                         (uint8_t)(command[2] - '0') :
+                                         (uint8_t)(command[2] - 'A' + 10);
+
+                    gpio_value = (uint8_t)((high_nibble << 4) | low_nibble);
+                    pl_gpio_xy_write32(0, gpio_value);
+                    printf("GPIO command: %02X\n", gpio_value);
+                    strcpy(response, "OK\r\n");
+                }
+
                 if ((strlen(command) == 8) && (command[0] != '+'))
                 {
                     // We have received an SPI command
