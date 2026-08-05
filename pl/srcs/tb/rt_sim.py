@@ -52,19 +52,24 @@ def convolve_head(taps, samples):
     return output
 
 
-def write_sample_hex(path, data, adc_format):
+def write_sample_hex(path, data, adc_format, tx_scale=1, rx_scale=1):
     with path.open("w", encoding="ascii") as stream:
         for sample in range(0, len(data), 2):
             for antenna in range(len(data[0]) - 1, -1, -1):
                 first = data[sample][antenna]
                 second = data[sample + 1][antenna]
-                i0 = sint_to_hex(quantize(first.real))
-                q0 = sint_to_hex(quantize(first.imag))
-                i1 = sint_to_hex(quantize(second.real))
-                q1 = sint_to_hex(quantize(second.imag))
                 if adc_format:
+                    i0 = sint_to_hex(quantize(first.real))
+                    q0 = sint_to_hex(quantize(first.imag))
+                    i1 = sint_to_hex(quantize(second.real))
+                    q1 = sint_to_hex(quantize(second.imag))
                     stream.write(f"{q1}{q0}{i1}{i0}")
                 else:
+                    scale = rx_scale if antenna == 0 else tx_scale
+                    i0 = sint_to_hex(quantize(first.real) * scale)
+                    q0 = sint_to_hex(quantize(first.imag) * scale)
+                    i1 = sint_to_hex(quantize(second.real) * scale)
+                    q1 = sint_to_hex(quantize(second.imag) * scale)
                     stream.write(f"{i1}{q1}{i0}{q0}")
             stream.write(f",{int(sample + 2 >= len(data))}\n")
 
@@ -196,6 +201,30 @@ def main():
         suffix = f"{test_index:02d}"
         write_sample_hex(hex_dir / f"input_{suffix}.hex", inputs, adc_format=True)
         write_sample_hex(hex_dir / f"output_{suffix}.hex", output, adc_format=False)
+
+        if test_index == 1:
+            for factor in (2, 4, 8, 16):
+                write_sample_hex(
+                    hex_dir / f"output_tx_scale_{factor}.hex",
+                    output,
+                    adc_format=False,
+                    tx_scale=factor,
+                )
+                write_sample_hex(
+                    hex_dir / f"output_rx_scale_{factor}.hex",
+                    output,
+                    adc_format=False,
+                    rx_scale=factor,
+                )
+
+            write_sample_hex(
+                hex_dir / "output_scale_4_8.hex",
+                output,
+                adc_format=False,
+                tx_scale=4,
+                rx_scale=8,
+            )
+
         write_phases_hex(hex_dir / f"phases_{suffix}.hex", phase_tx, phase_rx)
         write_memory_init_hex(
             hex_dir / f"memory_init_{suffix}.hex",
