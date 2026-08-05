@@ -27,7 +27,8 @@ module wrapper_tb;
     localparam int AXIL_IO_BASE_ADDR = 'h0000_0000;
     localparam int AXIL_IO_CTRL_OFFSET = AXIL_IO_BASE_ADDR + 'h0000_0000;
     localparam int AXIL_IO_PHASE_OFFSET = AXIL_IO_BASE_ADDR + 'h0000_0004;
-    localparam int AXIL_IO_OVERFLOW_OFFSET = AXIL_IO_BASE_ADDR + 'h0000_0040;
+    localparam int AXIL_IO_SCALE_TX_OFFSET = AXIL_IO_BASE_ADDR + 'h0000_003C;
+    localparam int AXIL_IO_SCALE_RX_OFFSET = AXIL_IO_BASE_ADDR + 'h0000_0040;
 
     localparam int TX_DMA_BASE_ADDR = 'h41E0_0000;
     localparam int TX_DMA_DMACR_OFFSET = TX_DMA_BASE_ADDR + 'h0000_0000;  // control register
@@ -62,6 +63,8 @@ module wrapper_tb;
     localparam int NUM_TAPS_1 = 21;
     localparam int DMA_TRANSFER_LENGTH_0 = NUM_TAPS_0 * 4;
     localparam int DMA_TRANSFER_LENGTH_1 = (NUM_TAPS_1 + 1) / 2 * 4;
+
+    localparam int EQUIVALENCE_SKIP_SAMPLES = NUM_TAPS_0 + NUM_TAPS_1 - 1;
 
     localparam int STATUS_HALTED               = 'h00000001;
     localparam int STATUS_IDLE                 = 'h00000002;
@@ -185,7 +188,7 @@ module wrapper_tb;
 
         // read check
         $display("Reading initial AXIL IO registers:");
-        for (int i = 0; i < `NCH + 1; i++) begin
+        for (int i = 0; i < 17; i++) begin
             addr = AXIL_IO_BASE_ADDR + i * 4;
             mst_agent.AXI4LITE_READ_BURST(addr, prot, rdata, rresp);
             $display("AXIL IO Reg %0d: %h", i, rdata);
@@ -197,6 +200,15 @@ module wrapper_tb;
             wdata = 32'h00007FFF;  // 1.0 in Q1.15
             mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
         end
+
+        test_scaling(0, 0, "output_01.hex");
+        for (int shift = 3; shift <= 4; shift++) begin
+            $display("\n\nRunning scaling test with tx shift = %d\n\n", shift);
+            test_scaling(shift, 0, $sformatf("output_tx_scale_%0d.hex", 1 << shift));
+            $display("\n\nRunning scaling test with rx shift = %d\n\n", shift);
+            test_scaling(0, shift, $sformatf("output_rx_scale_%0d.hex", 1 << shift));
+        end
+        test_scaling(2, 3, "output_scale_4_8.hex");
 
         previous_test = -1;
         repeat (16) begin
@@ -235,6 +247,7 @@ module wrapper_tb;
     task automatic test_0();
         begin
             $display("test 0: calibration mode: data passthru from demux to mux in the test");
+            set_scaling(4, 4);
             // set ctrl. format = 0xFIRRELOAD_00_TXRXMODE_OPMODE
             wdata = 32'h00_00_00_00;  // set to calibration mode
             addr  = AXIL_IO_CTRL_OFFSET;
@@ -250,6 +263,7 @@ module wrapper_tb;
                 axis_read(1, "input_01.hex");
                 mm2s_write(1, "input_01.hex");
             join
+            set_scaling(0, 0);
             $display("test 0: done at %t", $time);
         end
     endtask
@@ -260,6 +274,7 @@ module wrapper_tb;
         begin
             int fir_reload;
             $display("test basic: realtime correction mode. Running idx: %d", idx);
+            set_scaling(0, 0);
             addr  = AXIL_IO_CTRL_OFFSET;
             wdata = 32'h00_00_00_01;  // set to correction mode
             mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
@@ -303,6 +318,7 @@ module wrapper_tb;
     task automatic test_1();
         begin
             $display("test 1: tx + rx bypass mode. ADC -> DAC");
+            set_scaling(4, 4);
             wdata = 32'h00_00_00_02;  // set to bypass mode
             addr  = AXIL_IO_CTRL_OFFSET;
             mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
@@ -312,7 +328,54 @@ module wrapper_tb;
                 axis_read(1, "output_00.hex");
                 s2mm_read(1, "input_00.hex"); // data is sent on this port as well for monitoring.
             join
+            set_scaling(0, 0);
             $display("test 1: done at %t", $time);
+        end
+    endtask
+
+    task automatic test_scaling(
+        input int tx_shift,
+        input int rx_shift,
+        input string output_file
+    );
+        begin
+            $display("test scaling: TX shift %0d, RX shift %0d", tx_shift, rx_shift);
+            set_scaling(tx_shift, rx_shift);
+
+            addr  = AXIL_IO_CTRL_OFFSET;
+            wdata = 32'h00_00_00_01;  // set to correction mode
+            mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
+
+            fn_ddr = "memory_init_01.hex";
+            fn_phases = "phases_01.hex";
+            fn_input = "input_01.hex";
+            fn_output = output_file;
+
+            reload_coeffs(fn_ddr);
+            load_phases(fn_phases);
+
+            fork
+                axis_write(1, fn_input, 0);
+                axis_read(1, fn_output);
+                s2mm_read(1, fn_input);
+            join
+
+            set_scaling(0, 0);
+        end
+    endtask
+
+    task automatic set_scaling(
+        input int tx_shift,
+        input int rx_shift
+    );
+        begin
+            addr = AXIL_IO_SCALE_TX_OFFSET;
+            wdata = tx_shift;
+            mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
+
+            addr = AXIL_IO_SCALE_RX_OFFSET;
+            wdata = rx_shift;
+            mst_agent.AXI4LITE_WRITE_BURST(addr, prot, wdata, bresp);
         end
     endtask
 
@@ -573,7 +636,7 @@ module wrapper_tb;
             logic [DW_DATA * `N_ANT - 1:0] ref_tdata;
             logic                          ref_tlast;
             logic signed [16 - 1:0] rxed, gold;
-            logic signed [16:0] diff;
+            logic signed [15:0] diff;
             int                 fp;
             int                 count;
             int                 error_count;
@@ -595,12 +658,12 @@ module wrapper_tb;
 
                 for (int i = 0; i < 2 * `N_ANT * SAMPLES_PER_CLOCK; i++) begin
                     if (i == 0) begin
-                        count = count + 1;
+                        count = count + SAMPLES_PER_CLOCK;
                     end
                     rxed = m_tdata[i*16+:16];
                     gold = ref_tdata[i*16+:16];
                     diff = rxed - gold;
-                    if ((abs(diff) > 15)) begin
+                    if ((abs(diff) > 15) && (count > EQUIVALENCE_SKIP_SAMPLES)) begin
                         $display("%t: %d, ant %x: gold: %d, rxed: %d. diff = %d", $time, count,
                                  i / 4, gold, rxed, abs(diff));
 //                        $stop;
@@ -680,16 +743,16 @@ module wrapper_tb;
 
                 for (int i = 0; i < 2 * `N_ANT * SAMPLES_PER_CLOCK; i++) begin
                     if (i == 0) begin
-                        count = count + 1;
+                        count = count + SAMPLES_PER_CLOCK;
                     end
                     rxed = to_adc_dma_tdata[i*16+:16];
                     gold = ref_tdata[i*16+:16];
                     diff = rxed - gold;
-                    if ((abs(diff) > 7) & (count > 72)) begin
+                    if ((abs(diff) > 7) && (count > EQUIVALENCE_SKIP_SAMPLES)) begin
                         $display("%t: %d, ant %x: gold: %d, rxed: %d. diff = %d", $time, count,
                                  i / 4, gold, rxed, abs(diff));
 
-                        $stop;
+                        $fatal(1, "Equivalence check failed");
                     end
                 end
 

@@ -132,6 +132,10 @@ module rt_proc_core #(
 
     logic [32 * `NCH - 1:0] phase_tx, phase_rx;
     logic [32 * `NCH - 1:0] phase_tx_axil, phase_rx_axil;
+    logic [2:0] scale_tx, scale_rx;
+    logic [2:0] scale_tx_axil, scale_rx_axil;
+    logic [5:0] scale_axil, scale;
+    logic [2:0] scale_tx_effective, scale_rx_effective;
     logic [1:0] operation_mode_axil;
 
     // TODO: generate overflow signals and map
@@ -165,6 +169,9 @@ module rt_proc_core #(
 
         .phase_tx(phase_tx_axil),
         .phase_rx(phase_rx_axil),
+
+        .scale_tx(scale_tx_axil),
+        .scale_rx(scale_rx_axil),
 
         .operation_mode(operation_mode_axil),
 
@@ -216,6 +223,26 @@ module rt_proc_core #(
         .src_clk (axil_clk),
         .src_in  (phase_rx_axil)
     );
+
+    assign scale_axil = {scale_rx_axil, scale_tx_axil};
+
+    xpm_cdc_array_single #(
+        .DEST_SYNC_FF  (4),
+        .INIT_SYNC_FF  (0),
+        .SIM_ASSERT_CHK(0),
+        .SRC_INPUT_REG (1),
+        .WIDTH         (6)
+    ) xpm_cdc_array_scale (
+        .dest_out(scale),
+        .dest_clk(clk),
+        .src_clk (axil_clk),
+        .src_in  (scale_axil)
+    );
+
+    assign scale_tx = scale[2:0];
+    assign scale_rx = scale[5:3];
+    assign scale_tx_effective = (operation_mode == 2'b01) ? scale_tx : 3'd0;
+    assign scale_rx_effective = (operation_mode == 2'b01) ? scale_rx : 3'd0;
 
     xpm_fifo_axis #(
         .CDC_SYNC_STAGES(2),
@@ -313,6 +340,8 @@ module rt_proc_core #(
         
         .phase(phase_tx),
 
+        .scale_shift(scale_tx_effective),
+
         .s_tdata (s_tdata_i),
         .s_tvalid(s_tvalid_i[0]),
         .s_tready(s_tready_i[0]),
@@ -353,6 +382,8 @@ module rt_proc_core #(
         .param_fir1_tready(),                   // dangling
 
         .phase(phase_rx),
+
+        .scale_shift(scale_rx_effective),
 
         .s_tdata (s_tdata[DW_DATA+:DW_DATA*`NCH]),
         .s_tvalid(s_tvalid),

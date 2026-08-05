@@ -34,6 +34,9 @@ module axil_io #(
     , output reg [224 - 1:0] phase_tx,
     output reg [224 - 1:0] phase_rx,
 
+    output reg [2:0] scale_tx,
+    output reg [2:0] scale_rx,
+
     output reg [1:0] operation_mode,
 
     output reg [7:0] fir0_tdata,
@@ -180,6 +183,8 @@ module axil_io #(
     // 0 - CTRL register
     // 1 to 7 - phase tx
     // 8 to 14 - phase rx
+    // 15 - TX output scale shift
+    // 16 - RX output scale shift
     always_comb begin
         // reg_space[0]:
         // 0 for calibration, correction(real time) otherwise
@@ -194,7 +199,10 @@ module axil_io #(
 
         for (int i = 0; i < 7; i++) begin
             phase_rx[32*i+:32] = reg_space[i + 8];
-        end        
+        end
+
+        scale_tx = reg_space[15][2:0];
+        scale_rx = reg_space[16][2:0];
     end
 
     // axis state machine handling

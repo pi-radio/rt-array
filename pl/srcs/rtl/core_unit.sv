@@ -48,6 +48,7 @@ module core_unit #(
     output logic       param_fir1_tready,
 
     input logic [32 * `NCH - 1:0] phase,
+    input logic [2:0]             scale_shift,
 
     // no backpressure on the data ports.
     // 7 streams - 7 copies of adc0 for tx or adc1 to adc7 for rx
@@ -77,6 +78,7 @@ module core_unit #(
     localparam int I_FIR1_FULL_PRECISION = 7;
     // note that the ip sign extends the data from 38 to 40 bits
     localparam int F_FIR1_FULL_PRECISION = 30; 
+    localparam int N_OUTPUT_SAMPLES = (IS_TX) ? SAMPLES_PER_CLOCK * `NCH : SAMPLES_PER_CLOCK;
 
     // internal signals to avoid warnings
     logic [`NCH - 1:0] s_tready_i;
@@ -102,6 +104,7 @@ module core_unit #(
     
     logic [W_M_TDATA - 1:0] axis_reg_in_tdata_i;
     logic [W_M_TDATA - 1:0] m_tdata_i;
+    logic [W_M_TDATA - 1:0] scaled_m_tdata_i;
     logic m_tvalid_i;
 
     assign s_tready          = s_tready_i[0];
@@ -261,8 +264,6 @@ module core_unit #(
                 axis_reg_in_tdata_i[addr_real+:W_FIR1_OUT] = fir1_tdata_i[i];
                 axis_reg_in_tdata_i[addr_imag+:W_FIR1_OUT] = fir1_tdata_q[i];
             end
-            m_tdata  = m_tdata_i;
-            m_tvalid = m_tvalid_i;
         end else begin
             // send fir output to summation block
             for (int i = 0; i < SAMPLES_PER_CLOCK * `NCH; i++) begin
@@ -273,9 +274,21 @@ module core_unit #(
                 summation_in[addr_imag+:W_FIR1_OUT] = fir1_tdata_q[i];
             end
 
-            m_tdata  = m_tdata_i;
-            m_tvalid = m_tvalid_i;
         end
+
+        scaled_m_tdata_i = '0;
+        for (int i = 0; i < N_OUTPUT_SAMPLES; i++) begin
+            int addr_real = 2 * i * W_FIR1_OUT;
+            int addr_imag = addr_real + W_FIR1_OUT;
+
+            scaled_m_tdata_i[addr_real+:W_FIR1_OUT] =
+                $signed(m_tdata_i[addr_real+:W_FIR1_OUT]) <<< scale_shift;
+            scaled_m_tdata_i[addr_imag+:W_FIR1_OUT] =
+                $signed(m_tdata_i[addr_imag+:W_FIR1_OUT]) <<< scale_shift;
+        end
+
+        m_tdata  = scaled_m_tdata_i;
+        m_tvalid = m_tvalid_i;
     end
 
     reg [5:0] valid_d = 0;
