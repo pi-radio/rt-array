@@ -132,10 +132,10 @@ module rt_proc_core #(
 
     logic [32 * `NCH - 1:0] phase_tx, phase_rx;
     logic [32 * `NCH - 1:0] phase_tx_axil, phase_rx_axil;
-    logic [2:0] scale_tx, scale_rx;
-    logic [2:0] scale_tx_axil, scale_rx_axil;
-    logic [5:0] scale_axil, scale;
-    logic [2:0] scale_tx_effective, scale_rx_effective;
+    logic [3:0] scale_tx, scale_rx;
+    logic [3:0] scale_tx_axil, scale_rx_axil;
+    logic [7:0] scale_axil, scale;
+    logic [3:0] scale_tx_effective, scale_rx_effective;
     logic [1:0] operation_mode_axil;
 
     // TODO: generate overflow signals and map
@@ -231,7 +231,7 @@ module rt_proc_core #(
         .INIT_SYNC_FF  (0),
         .SIM_ASSERT_CHK(0),
         .SRC_INPUT_REG (1),
-        .WIDTH         (6)
+        .WIDTH         (8)
     ) xpm_cdc_array_scale (
         .dest_out(scale),
         .dest_clk(clk),
@@ -239,10 +239,10 @@ module rt_proc_core #(
         .src_in  (scale_axil)
     );
 
-    assign scale_tx = scale[2:0];
-    assign scale_rx = scale[5:3];
-    assign scale_tx_effective = (operation_mode == 2'b01) ? scale_tx : 3'd0;
-    assign scale_rx_effective = (operation_mode == 2'b01) ? scale_rx : 3'd0;
+    assign scale_tx = scale[3:0];
+    assign scale_rx = scale[7:4];
+    assign scale_tx_effective = (operation_mode == 2'b01) ? scale_tx : 4'd0;
+    assign scale_rx_effective = (operation_mode == 2'b01) ? scale_rx : 4'd0;
 
     xpm_fifo_axis #(
         .CDC_SYNC_STAGES(2),

@@ -48,7 +48,7 @@ module core_unit #(
     output logic       param_fir1_tready,
 
     input logic [32 * `NCH - 1:0] phase,
-    input logic [2:0]             scale_shift,
+    input logic [3:0]             scale_shift,
 
     // no backpressure on the data ports.
     // 7 streams - 7 copies of adc0 for tx or adc1 to adc7 for rx
@@ -110,6 +110,37 @@ module core_unit #(
     assign s_tready          = s_tready_i[0];
     assign param_fir0_tready = param_fir0_tready_i[0];
     assign param_fir1_tready = param_fir1_tready_i[0];
+
+    function automatic logic signed [W_FIR1_OUT-1:0] saturating_left_shift(
+        input logic signed [W_FIR1_OUT-1:0] sample,
+        input logic        [3:0]            shift
+    );
+        logic signed [W_FIR1_OUT-1:0] shifted;
+        logic                              overflow;
+
+        begin
+            shifted = sample <<< shift;
+
+            case (shift)
+                4'd0: overflow = 1'b0;
+                4'd1: overflow = sample[W_FIR1_OUT-2] != sample[W_FIR1_OUT-1];
+                4'd2: overflow = sample[W_FIR1_OUT-2:W_FIR1_OUT-3] !=
+                                 {2{sample[W_FIR1_OUT-1]}};
+                4'd3: overflow = sample[W_FIR1_OUT-2:W_FIR1_OUT-4] !=
+                                 {3{sample[W_FIR1_OUT-1]}};
+                4'd4: overflow = sample[W_FIR1_OUT-2:W_FIR1_OUT-5] !=
+                                 {4{sample[W_FIR1_OUT-1]}};
+                default: overflow = 1'b0;
+            endcase
+
+            if (!overflow)
+                saturating_left_shift = shifted;
+            else if (sample[W_FIR1_OUT-1])
+                saturating_left_shift = {1'b1, {(W_FIR1_OUT-1){1'b0}}};
+            else
+                saturating_left_shift = {1'b0, {(W_FIR1_OUT-1){1'b1}}};
+        end
+    endfunction
 
     genvar gi, gj;
     generate
@@ -282,9 +313,11 @@ module core_unit #(
             int addr_imag = addr_real + W_FIR1_OUT;
 
             scaled_m_tdata_i[addr_real+:W_FIR1_OUT] =
-                $signed(m_tdata_i[addr_real+:W_FIR1_OUT]) <<< scale_shift;
+                saturating_left_shift(
+                    $signed(m_tdata_i[addr_real+:W_FIR1_OUT]), scale_shift);
             scaled_m_tdata_i[addr_imag+:W_FIR1_OUT] =
-                $signed(m_tdata_i[addr_imag+:W_FIR1_OUT]) <<< scale_shift;
+                saturating_left_shift(
+                    $signed(m_tdata_i[addr_imag+:W_FIR1_OUT]), scale_shift);
         end
 
         m_tdata  = scaled_m_tdata_i;

@@ -34,8 +34,8 @@ module axil_io #(
     , output reg [224 - 1:0] phase_tx,
     output reg [224 - 1:0] phase_rx,
 
-    output reg [2:0] scale_tx,
-    output reg [2:0] scale_rx,
+    output reg [3:0] scale_tx,
+    output reg [3:0] scale_rx,
 
     output reg [1:0] operation_mode,
 
@@ -201,8 +201,8 @@ module axil_io #(
             phase_rx[32*i+:32] = reg_space[i + 8];
         end
 
-        scale_tx = reg_space[15][2:0];
-        scale_rx = reg_space[16][2:0];
+        scale_tx = reg_space[15][3:0];
+        scale_rx = reg_space[16][3:0];
     end
 
     // axis state machine handling
